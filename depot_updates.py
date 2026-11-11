@@ -1060,6 +1060,54 @@ def _cached_synthetic_forecast(name, model_rev, data_rev, start_date, growth_pct
     return seed, pd.Series(forecast, index=times, name='LSTM simulated-scenario forecast (kW)')
 
 
+
+
+def _sixty_day_profile(name, target_times, growth_pct=0):
+    """Historical weekly quarter-hour profile, using up to the latest 60 full days.
+
+    This is a statistical planning profile, not an LSTM trained with 5,760 inputs.
+    """
+    historical = _regular(observations(name)).sort_index()
+    last = historical.index[-1]
+    cutoff = last - pd.Timedelta(days=60)
+    recent = historical.loc[historical.index > cutoff].dropna()
+    if recent.empty or (recent.index[-1] - recent.index[0]) < pd.Timedelta(days=59):
+        raise ValueError('A 30-day planning forecast needs approximately 60 days of historical 15-minute readings. Upload more depot data.')
+    # A weekday/quarter-hour profile retains weekly charging patterns.
+    keys = pd.MultiIndex.from_arrays(
+        [recent.index.dayofweek, recent.index.hour * 4 + recent.index.minute // 15]
+    )
+    medians = pd.Series(recent.to_numpy(dtype=float), index=keys).groupby(level=[0, 1]).median()
+    fallback = recent.groupby(recent.index.hour * 4 + recent.index.minute // 15).median()
+    overall = float(recent.median())
+    values = np.array([
+        float(medians.get((t.dayofweek, t.hour * 4 + t.minute // 15),
+                          fallback.get(t.hour * 4 + t.minute // 15, overall)))
+        for t in target_times
+    ], dtype=float)
+    return np.maximum(0.0, values * (1.0 + float(growth_pct) / 100.0))
+
+
+@st.cache_data(show_spinner=False, max_entries=24)
+def _cached_extended_forecast(name, model_rev, data_rev, hours, start_date=None, growth_pct=0):
+    """Saved 96-input LSTM for 72h, then 60-day historical profile for planning."""
+    short_hours = min(int(hours), 72)
+    if start_date is None:
+        hist, short = _cached_forecast(name, model_rev, data_rev, short_hours)
+    else:
+        hist, short = _cached_synthetic_forecast(
+            name, model_rev, data_rev, str(start_date), int(growth_pct), short_hours
+        )
+    remaining = int(hours * 4) - len(short)
+    if remaining <= 0:
+        return hist, short
+    future_index = pd.date_range(short.index[-1] + pd.Timedelta(minutes=15),
+                                 periods=remaining, freq='15min')
+    profile = _sixty_day_profile(name, future_index, growth_pct if start_date is not None else 0)
+    extended = pd.Series(profile, index=future_index, name='60-day historical demand profile (kW)')
+    return hist, pd.concat([short, extended])
+
+
 def render_fast_forecast(name):
     """Fast LSTM forecast with transparent operational and future scenario modes.
 
@@ -1147,8 +1195,9 @@ def render_fast_forecast(name):
     )
     a, b = st.columns(2)
     with a:
-        hours = st.selectbox('Prediction period (hours)', [2, 4, 6, 12, 24, 48, 72],
-                             index=4, key=f'fast_horizon_{_slug(name)}')
+        hours = st.selectbox('Forecast horizon', [2, 4, 6, 12, 24, 48, 72, 168, 336, 720],
+                             index=4, format_func=lambda h: f'{h // 24} days' if h >= 168 else f'{h} hours',
+                             key=f'fast_horizon_{_slug(name)}')
     with b:
         capacity = st.number_input('Grid capacity (kW)', min_value=.1,
                                    value=float(v.get('capacity_kw', BUILTIN.get(name, 17.))),
@@ -1169,15 +1218,16 @@ def render_fast_forecast(name):
             growth_pct = st.slider('Fleet-demand growth (%)', min_value=0, max_value=150,
                                    value=20, step=5, key=f'future_growth_{_slug(name)}')
         st.markdown('<div class="optivolt-summary"><strong>Future demand prediction</strong> · '
-                    'Saved LSTM · 24-hour historical-pattern input · Scenario-based forecast</div>',
+                    'Saved LSTM (first 72 hours) · 60-day historical profile for longer forecasts</div>',
                     unsafe_allow_html=True)
         with st.expander('How the future prediction is generated', expanded=False):
             st.write('The saved LSTM uses 96 consecutive 15-minute readings (24 hours) as its fixed input. '
-                     'The prediction period is selected separately (2–72 hours). Longer predictions recursively '
-                     'use earlier model outputs, so uncertainty can increase.')
+                     'The forecast horizon is selected separately (up to 30 days). The first 72 hours '
+                     'use recursive LSTM predictions; the remaining period uses the previous 60 days '
+                     'of historical weekday and time-of-day demand patterns.')
             st.write('Future inputs are derived from historical demand on matching weekdays and adjusted '
-                     'for the selected growth assumption. These are planning scenarios, not actual future '
-                     'measurements or validated operational forecasts.')
+                     'for the selected growth assumption. The historical-profile extension is a planning '
+                     'projection, not a separately trained LSTM.')
 
     key = f'run_fast_forecast_{_slug(name)}'
     if not st.session_state.get(key):
@@ -1191,14 +1241,16 @@ def render_fast_forecast(name):
     try:
         with st.spinner('Running saved LSTM inference for the selected horizon'):
             if scenario:
-                seed, pred = _cached_synthetic_forecast(
-                    name, model_revision(name), dataset_revision(name),
-                    str(future_date), int(growth_pct), int(hours))
+                seed, pred = _cached_extended_forecast(
+                    name, model_revision(name), dataset_revision(name), int(hours),
+                    str(future_date), int(growth_pct))
                 hist = seed
             else:
-                hist, pred = _cached_forecast(
+                hist, pred = _cached_extended_forecast(
                     name, model_revision(name), dataset_revision(name), int(hours))
 
+        if hours > 72:
+            st.info('Forecast method: first 72 hours use the saved 96-input LSTM; the remaining period uses a 60-day historical weekday/time-of-day demand profile. The saved model is not retrained.')
         if scenario:
             st.markdown(f'<div class="ov-period"><strong>Prediction period · {hours} hours</strong> &nbsp; {pred.index[0]:%d %b %Y %H:%M} – {(pred.index[-1] + pd.Timedelta(minutes=15)):%d %b %Y %H:%M} (end exclusive)</div>', unsafe_allow_html=True)
             st.caption('Simulation input: 96 synthetic 15-minute readings for the day immediately before '
@@ -1289,7 +1341,7 @@ def render_fast_forecast(name):
                 line=dict(color='#1D4ED8', width=3)))
         fig.add_trace(go.Scatter(
             x=pred.index, y=pred.values,
-            name='LSTM future scenario prediction' if scenario else 'LSTM forecast',
+            name='LSTM + historical-profile forecast' if hours > 72 else ('LSTM future scenario prediction' if scenario else 'LSTM forecast'),
             mode='lines', line=dict(color='#087F8C', width=4),
             fill='tozeroy', fillcolor='rgba(8,127,140,0.12)',
             hovertemplate='%{x|%d %b %Y %H:%M}<br>Prediction: %{y:.2f} kW<extra></extra>'))
@@ -1334,7 +1386,7 @@ def render_fast_forecast(name):
                                    mime='text/csv', key=f'download_synthetic_{_slug(name)}')
             result_table = pd.DataFrame({
                 'timestamp': pred.index, 'predicted_demand_kw': pred.values,
-                'prediction_type': 'LSTM_on_synthetic_input',
+                'prediction_type': ['LSTM_on_synthetic_input' if i < 72 * 4 else '60_day_historical_profile' for i in range(len(pred))],
                 'scenario_growth_pct': growth_pct,
                 'grid_capacity_kw': capacity,
                 'grid_headroom_kw': capacity - pred.values,
@@ -1353,9 +1405,9 @@ def render_fast_forecast(name):
                 with st.spinner('Generating four LSTM growth-scenario forecasts'):
                     comparison = {}
                     for growth in (0, 20, 50, 100):
-                        _, scenario_pred = _cached_synthetic_forecast(
-                            name, model_revision(name), dataset_revision(name),
-                            str(future_date), growth, int(hours))
+                        _, scenario_pred = _cached_extended_forecast(
+                            name, model_revision(name), dataset_revision(name), int(hours),
+                            str(future_date), growth)
                         comparison[growth] = scenario_pred
                 comparison_fig = go.Figure()
                 scenario_colors = {0: '#1D4ED8', 20: '#087F8C', 50: '#7C3AED', 100: '#B45309'}
