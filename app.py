@@ -1340,6 +1340,63 @@ section[data-testid="stMain"] .block-container {
       padding-right: 1rem !important;
   }
 }
+
+/* Admin and dashboard contrast: readable active/disabled controls, without changing behavior. */
+section[data-testid="stMain"] [data-testid="stButton"] button:disabled,
+section[data-testid="stMain"] [data-testid="stDownloadButton"] button:disabled,
+section[data-testid="stMain"] [data-testid="stFormSubmitButton"] button:disabled,
+section[data-testid="stMain"] .stButton button:disabled,
+section[data-testid="stMain"] .stDownloadButton button:disabled,
+section[data-testid="stMain"] .stFormSubmitButton button:disabled {
+  background: #d9e1ed !important;
+  background-image: none !important;
+  border: 1px solid #94a3b8 !important;
+  color: #334155 !important;
+  -webkit-text-fill-color: #334155 !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+  box-shadow: none !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+}
+section[data-testid="stMain"] [data-testid="stButton"] button:disabled *,
+section[data-testid="stMain"] [data-testid="stDownloadButton"] button:disabled *,
+section[data-testid="stMain"] [data-testid="stFormSubmitButton"] button:disabled *,
+section[data-testid="stMain"] .stButton button:disabled *,
+section[data-testid="stMain"] .stDownloadButton button:disabled *,
+section[data-testid="stMain"] .stFormSubmitButton button:disabled * {
+  color: #334155 !important;
+  -webkit-text-fill-color: #334155 !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+}
+/* Disabled form widgets: distinguish inactive state while keeping values legible. */
+section[data-testid="stMain"] input:disabled,
+section[data-testid="stMain"] textarea:disabled,
+section[data-testid="stMain"] [data-baseweb="input"] input:disabled,
+section[data-testid="stMain"] [data-baseweb="textarea"] textarea:disabled,
+section[data-testid="stMain"] [data-baseweb="select"] [aria-disabled="true"],
+section[data-testid="stMain"] [data-baseweb="select"] [aria-disabled="true"] * {
+  background-color: #e2e8f0 !important;
+  color: #334155 !important;
+  -webkit-text-fill-color: #334155 !important;
+  opacity: 1 !important;
+}
+section[data-testid="stMain"] [data-testid="stWidgetLabel"] p,
+section[data-testid="stMain"] [data-testid="stWidgetLabel"] label,
+section[data-testid="stMain"] [data-testid="stExpander"] summary {
+  color: #26364b !important;
+  opacity: 1 !important;
+}
+/* Notices and audit panels on light backgrounds must use dark legible text. */
+section[data-testid="stMain"] [data-testid="stAlert"] p,
+section[data-testid="stMain"] [data-testid="stAlert"] li,
+section[data-testid="stMain"] [data-testid="stAlert"] strong,
+section[data-testid="stMain"] [data-testid="stCaptionContainer"] p {
+  color: #243449 !important;
+  -webkit-text-fill-color: #243449 !important;
+  opacity: 1 !important;
+}
 </style>""", unsafe_allow_html=True)
 st.logo(str(config.ASSETS_DIR / "logo.svg"), size="large", icon_image=ICON)
 st.session_state["_optivolt_pages_by_section"] = section_pages
