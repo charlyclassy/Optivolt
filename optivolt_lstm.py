@@ -6091,8 +6091,8 @@ elif nav_selection == "🚗 Scenario Analysis":
     st.markdown("**How this page works:** Historical depot readings → saved LSTM baseline → "
                 "planning adjustments → forecast and capacity comparison")
 
-    # Forecast dates are independently editable, but default to the last period
-    # selected in Demand Prediction when it is available.
+    # Forecast dates are independently editable, but default to the most recent
+    # saved Demand Prediction period when available.
     _planning_depot = st.session_state.get("current_depot")
     try:
         import forecast_results_store as _planning_forecast_store
@@ -6102,14 +6102,35 @@ elif nav_selection == "🚗 Scenario Analysis":
 
     _default_start = pd.Timestamp("2026-11-09 00:00")
     _default_end = _default_start + pd.Timedelta(hours=72)
+    _saved_forecast_key = None
     if _planning_payload:
         try:
             _saved_times = pd.DatetimeIndex(pd.to_datetime(_planning_payload["timestamps"]))
             if len(_saved_times):
                 _default_start = _saved_times[0]
                 _default_end = _saved_times[-1] + pd.Timedelta(minutes=SAMPLING_MINUTES)
+                _saved_forecast_key = (
+                    str(_planning_payload.get("depot", "")),
+                    str(_planning_payload.get("generated_at_utc", "")),
+                    str(_default_start), str(_default_end),
+                )
         except (KeyError, ValueError, TypeError):
             pass
+    # A newly saved Demand Prediction forecast must also reset existing
+    # Streamlit widget values, which would otherwise override `value=`/`index=`.
+    if (st.session_state.get("planning_loaded_forecast_key") != _saved_forecast_key
+            and _saved_forecast_key is not None):
+        st.session_state["planning_loaded_forecast_key"] = _saved_forecast_key
+        hours = (_default_end - _default_start) / pd.Timedelta(hours=1)
+        _duration_map = {24: "24 hours", 48: "48 hours", 72: "72 hours",
+                         168: "7 days", 336: "14 days", 720: "30 days"}
+        st.session_state["planning_duration_choice"] = _duration_map.get(
+            int(hours) if hours.is_integer() else -1, "Custom date range")
+        st.session_state["planning_from_date"] = _default_start.date()
+        st.session_state["planning_from_clock"] = _default_start.strftime("%H:%M")
+        st.session_state["planning_to_date"] = _default_end.date()
+        st.session_state["planning_to_clock"] = _default_end.strftime("%H:%M")
+        st.session_state.pop("planning_confirmed_signature", None)
 
     # Show the real source and model used, rather than implying the dates below are historical data.
     _source_history = history_series.sort_index().dropna()
@@ -6201,16 +6222,15 @@ elif nav_selection == "🚗 Scenario Analysis":
 
     if not _model_ready:
         st.warning(f"No usable LSTM baseline for {_planning_depot}. Choose a compatible saved model above or train a model for this depot. Forecast generation must remain disabled until inputs are valid.")
-    st.markdown("### Step 1 — Generate LSTM baseline demand forecast")
-    st.caption("Predict future demand from the saved LSTM and historical depot readings, "
-               "before applying any fleet-growth or charging-management changes. No model retraining occurs.")
-    st.caption("For 7–30 day horizons, Optivolt uses the previous 60 days of depot readings to build a weekday/time-of-day demand profile alongside the saved LSTM.")
+    st.markdown("### Step 1 — Select the saved LSTM demand forecast")
+    st.caption("The planning baseline is taken directly from the latest saved Demand Prediction "
+               "forecast. Planning does not train or calculate a different LSTM baseline.")
     _time_choices = [f"{hour:02d}:{minute:02d}" for hour in range(24) for minute in (0, 15, 30, 45)]
     _duration_label = st.radio(
         "Forecast duration",
         ["24 hours", "48 hours", "72 hours", "7 days", "14 days", "30 days", "Custom date range"],
         index=2, horizontal=True, key="planning_duration_choice",
-        help="Choose a quick duration or specify a custom end date and time.",
+        help="The selected period must match the saved Demand Prediction forecast exactly.",
     )
     _date_col1, _time_col1 = st.columns([2, 1])
     with _date_col1:
@@ -6239,118 +6259,46 @@ elif nav_selection == "🚗 Scenario Analysis":
     _requested_times = pd.date_range(_period_start, periods=_steps, freq=f"{SAMPLING_MINUTES}min")
     st.caption(f"{_steps} readings at 15-minute intervals · {_steps / STEPS_PER_HOUR:g} hours")
 
-    planning_threshold = float(st.session_state["grid_limit"])
-    warning_threshold = float(st.session_state["warn_threshold"])
     def _usable_planning_baseline(values, expected_length):
         arr = np.asarray(values, dtype=float).reshape(-1)
         return (len(arr) == expected_length and np.isfinite(arr).all()
                 and (arr >= 0).all() and bool(np.any(arr > 1e-6)))
 
-    _saved_valid = False
+    _has_model_baseline = False
+    _baseline_source = None
+    _planning_key = (_planning_depot, _period_start.isoformat(), _period_end.isoformat(),
+                     _saved_forecast_key)
     if _planning_payload:
         try:
             _candidate_times = pd.DatetimeIndex(pd.to_datetime(_planning_payload["timestamps"]))
             _candidate_values = np.asarray(_planning_payload["demand_kw"], dtype=float)
-            _saved_valid = (_usable_planning_baseline(_candidate_values, len(_requested_times))
-                and _candidate_times.equals(_requested_times))
+            _has_model_baseline = (
+                str(_planning_payload.get("depot")) == str(_planning_depot)
+                and str(_planning_payload.get("model", "")).upper().find("LSTM") >= 0
+                and _candidate_times.equals(_requested_times)
+                and _usable_planning_baseline(_candidate_values, _steps)
+            )
         except (KeyError, ValueError, TypeError):
-            _saved_valid = False
+            _has_model_baseline = False
 
-    _planning_cache = st.session_state.setdefault("planning_generated_baselines", {})
-    _planning_history_hash = hashlib.sha256(
-        pd.util.hash_pandas_object(_source_history, index=True).values.tobytes()
-    ).hexdigest()[:16]
-    _planning_model_source = _borrowed_from or _planning_depot
-    _planning_model_file = MODEL_DIR / f"{_model_slug(_planning_model_source)}.keras"
-    _planning_model_stamp = (
-        (_planning_model_file.stat().st_size, _planning_model_file.stat().st_mtime_ns)
-        if _planning_model_file.exists() else id(_planning_model)
-    )
-    _planning_key = (_planning_depot, _planning_model_source, _planning_model_stamp,
-                     _planning_history_hash, _period_start.isoformat(), _period_end.isoformat())
-    if st.button("Generate LSTM baseline demand forecast", type="primary", key="planning_generate_baseline", disabled=not _model_ready):
-        try:
-            # Prefer a matching weekday, but do not require a complete calendar
-            # day: the LSTM needs 96 *consecutive* 15-minute observations.
-            _hist = history_series.sort_index().dropna()
-            _hist = _hist[~_hist.index.duplicated(keep="last")]
-            _target_weekday = (_period_start - pd.Timedelta(days=1)).weekday()
-            _eligible = []
-            _interval = pd.Timedelta(minutes=SAMPLING_MINUTES)
-            for _end_pos in range(LSTM_LOOKBACK - 1, len(_hist)):
-                _window = _hist.iloc[_end_pos - LSTM_LOOKBACK + 1:_end_pos + 1]
-                _deltas = _window.index[1:] - _window.index[:-1]
-                if bool(np.all(_deltas == _interval)) and bool(np.isfinite(_window.to_numpy(dtype=float)).all()):
-                    _eligible.append(_window)
-            if not _eligible:
-                raise ValueError(
-                    "No 96 consecutive valid 15-minute historical readings are available "
-                    "to initialise the saved LSTM. Check depot demand data and timestamps."
-                )
-            # Prioritise a complete window ending on the target weekday,
-            # otherwise use the most recent valid 24-hour window.
-            _weekday_matches = [w for w in _eligible if w.index[-1].weekday() == _target_weekday]
-            _reference_day = (_weekday_matches or _eligible)[-1]
-            _seed_times = pd.date_range(end=_period_start - _interval,
-                periods=LSTM_LOOKBACK, freq=f"{SAMPLING_MINUTES}min")
-            _seed = pd.Series(_reference_day.to_numpy(dtype=float), index=_seed_times)
-            _model = _planning_model
-            _scalers = _planning_scalers
-            with st.spinner("Running the saved LSTM over the selected forecast period..."):
-                # Round up to full hours, then trim to the requested 15-minute end.
-                _, _values = (_forecast_with_60_day_context(
-                    _model, _source_history, _scalers, int(np.ceil(_steps / STEPS_PER_HOUR)),
-                    target_start=_period_start) if _steps > 288 else
-                    _recursive_forecast(_model, _seed, _scalers, int(np.ceil(_steps / STEPS_PER_HOUR))))
-            _forecast_values = np.asarray(_values[:_steps], dtype=float)
-            if not _usable_planning_baseline(_forecast_values, _steps):
-                raise ValueError("The LSTM produced an empty, invalid, or all-zero forecast. "
-                                 "Check the source depot history, saved model and scalers. "
-                                 "Planning results were not calculated from this forecast.")
-            _planning_cache[_planning_key] = _forecast_values
-            st.success(f"LSTM demand forecast generated for {_period_start:%d %b %Y %H:%M}–{_period_end:%d %b %Y %H:%M}.")
-        except Exception as exc:
-            st.error(f"Could not generate the LSTM baseline: {exc}")
-
-    _has_model_baseline = False
-    if _planning_key in _planning_cache and _usable_planning_baseline(_planning_cache[_planning_key], _steps):
-        _has_model_baseline = True
+    if _has_model_baseline:
         scenario_time_index = _requested_times
-        base_forecast = np.asarray(_planning_cache[_planning_key], dtype=float)
-
-    elif (_saved_valid and _borrowed_from is None and _model_ready
-          and str(_planning_payload.get("depot", _planning_depot)) == str(_planning_depot)
-          and str(_planning_payload.get("source_model_depot", _planning_depot)) == str(_planning_depot)):
-        # A forecast saved using this depot's own model must never be silently
-        # relabelled as a forecast from a borrowed model.
-        _has_model_baseline = True
-        scenario_time_index = _requested_times
-        base_forecast = _candidate_values
-        st.success(f"Using the saved Demand Prediction forecast for {_planning_depot} and the selected dates.")
+        base_forecast = _candidate_values.copy()
+        _baseline_source = "Demand Prediction (saved LSTM forecast)"
+        # Capacity must refer to the same settings used for this saved forecast.
+        planning_threshold = float(_planning_payload["capacity_kw"])
+        warning_threshold = planning_threshold * .8
+        st.success(f"Using the saved Demand Prediction LSTM forecast for {_planning_depot}. "
+                   f"Baseline peak: {base_forecast.max():.2f} kW. "
+                   f"Forecast period: {_period_start:%d %b %Y %H:%M} – "
+                   f"{_period_end:%d %b %Y %H:%M}.")
     else:
-        # Reject stale zero-valued baseline snapshots; never present them as valid.
-        if _planning_key in _planning_cache:
-            _planning_cache.pop(_planning_key, None)
-        # Planning controls remain visible before inference. This is a historical
-        # pattern reference, explicitly NOT an LSTM-generated forecast.
-        _history_reference = history_series.sort_index().dropna()
-        _reference = pd.Series(_history_reference.to_numpy(dtype=float), index=_history_reference.index)
-        _weekday_hour = _reference.groupby([_reference.index.weekday,
-            _reference.index.hour, _reference.index.minute]).median()
-        _overall = float(_reference.median())
-        base_forecast = np.asarray([
-            float(_weekday_hour.get((t.weekday(), t.hour, t.minute), _overall))
-            for t in _requested_times], dtype=float)
-        scenario_time_index = _requested_times
-        st.info("Baseline not yet generated for these dates. A historical-pattern reference is available "
-                "for context only; it is not an LSTM prediction. Generate the LSTM baseline above "
-                "before assessing planning changes.")
-
-    # Do not allow missing/invalid forecasts to be represented by zero-filled charts.
-    if _has_model_baseline and not _usable_planning_baseline(base_forecast, _steps):
-        _has_model_baseline = False
-        st.error("The available baseline contains no positive LSTM demand readings. "
-                 "Generate a valid baseline before performing a planning assessment.")
+        planning_threshold = float(st.session_state["grid_limit"])
+        warning_threshold = float(st.session_state["warn_threshold"])
+        st.warning("No matching saved LSTM forecast exists for this depot and selected date range. "
+                   "Generate a new forecast in Demand Prediction with these dates and horizon, "
+                   "then return here. The app will not substitute a different LSTM baseline.")
+        st.stop()
 
     # ------------------------------------------------------------
     # Wide-range scenario presets
@@ -6721,9 +6669,8 @@ elif nav_selection == "🚗 Scenario Analysis":
                 disabled=not cap_enabled,
             )
 
-    # Calculate planning outcomes from the active controls on each Streamlit rerun.
-    # Changing any preset, slider, checkbox or input automatically updates the
-    # results and charts; an additional submit click is not required.
+    # Calculate a signature of all current planning inputs. Results are shown
+    # only after the user explicitly requests an assessment for these inputs.
     _planning_inputs = {
         "depot": str(_planning_depot), "period": list(map(str, _planning_key)),
         "baseline": hashlib.sha256(np.asarray(base_forecast, dtype=np.float64).tobytes()).hexdigest(),
@@ -6745,9 +6692,18 @@ elif nav_selection == "🚗 Scenario Analysis":
     if not _usable_planning_baseline(base_forecast, _steps):
         st.error("The LSTM baseline is zero-filled or invalid; planning results cannot be calculated.")
         st.stop()
-    st.caption("Planning results and charts update automatically when you change "
-               "a preset or any operational condition below.")
-    st.session_state["planning_confirmed_signature"] = _planning_signature
+    st.caption("Review the operational conditions above, then click the button below "
+               "to calculate the planning comparison. Changing any condition requires a new calculation.")
+    st.caption(f"Baseline source: {_baseline_source or 'Unknown'} · "
+               f"Peak demand: {float(np.max(base_forecast)):.2f} kW · "
+               f"Period: {_period_start:%d %b %Y %H:%M} to {_period_end:%d %b %Y %H:%M}")
+    if st.button("Generate planning-based demand forecast", type="primary",
+                 key="planning_generate_scenario"):
+        st.session_state["planning_confirmed_signature"] = _planning_signature
+    if st.session_state.get("planning_confirmed_signature") != _planning_signature:
+        st.info("Click **Generate planning-based demand forecast** to apply the selected "
+                "planning conditions and display the updated comparison.")
+        st.stop()
 
     # ------------------------------------------------------------
     # Apply scenario transformations
