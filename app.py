@@ -1408,3 +1408,54 @@ except st.errors.StreamlitPageNotFoundError:
     st.switch_page(pages[0])
 sidebar()
 current.run()
+# Final accessible-control styling: injected after the active page has rendered.
+# This must be last because the legacy admin page injects additional styles
+# when it runs, which can otherwise override the dashboard's earlier CSS.
+st.markdown("""<style id="optivolt-final-contrast-fix">
+/* Keep the disabled state visible without sacrificing text contrast. */
+[data-testid="stAppViewContainer"] :is(
+  [data-testid="stButton"], [data-testid="stDownloadButton"],
+  [data-testid="stFormSubmitButton"], .stButton, .stDownloadButton,
+  .stFormSubmitButton
+):has(button:disabled) { opacity: 1 !important; filter: none !important; }
+
+[data-testid="stAppViewContainer"] :is(
+  [data-testid="stButton"], [data-testid="stDownloadButton"],
+  [data-testid="stFormSubmitButton"], .stButton, .stDownloadButton,
+  .stFormSubmitButton
+) button:disabled,
+[data-testid="stAppViewContainer"] button[data-testid^="stBaseButton"]:disabled,
+[data-testid="stAppViewContainer"] button[aria-disabled="true"] {
+  background: #cbd5e1 !important;
+  background-image: none !important;
+  color: #1e293b !important;
+  -webkit-text-fill-color: #1e293b !important;
+  border: 1px solid #64748b !important;
+  opacity: 1 !important;
+  filter: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  cursor: not-allowed !important;
+}
+[data-testid="stAppViewContainer"] button:disabled :is(p, span, div, strong, small, svg),
+[data-testid="stAppViewContainer"] button[aria-disabled="true"] :is(p, span, div, strong, small, svg) {
+  color: #1e293b !important;
+  -webkit-text-fill-color: #1e293b !important;
+  opacity: 1 !important;
+  filter: none !important;
+  text-shadow: none !important;
+  fill: currentColor;
+}
+[data-testid="stAppViewContainer"] :is(input, textarea):disabled,
+[data-testid="stAppViewContainer"] [aria-disabled="true"]:is([role="combobox"], [role="textbox"]) {
+  color: #334155 !important;
+  -webkit-text-fill-color: #334155 !important;
+  background-color: #e2e8f0 !important;
+  opacity: 1 !important;
+}
+[data-testid="stAppViewContainer"] [data-testid="stAlert"] :is(p, li, strong),
+[data-testid="stAppViewContainer"] [data-testid="stCaptionContainer"] p {
+  color: #243449 !important;
+  -webkit-text-fill-color: #243449 !important;
+}
+</style>""", unsafe_allow_html=True)
