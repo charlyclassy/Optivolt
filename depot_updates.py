@@ -1193,7 +1193,7 @@ def render_fast_forecast(name):
     </style>''', unsafe_allow_html=True)
     st.markdown('''<div class="ov-hero"><h1><svg viewBox="0 0 24 32" aria-hidden="true"><path d="M13.9 0 1.8 17.2h8.1L7.6 32 22.2 12.4h-8.4L13.9 0z"/></svg><span>Demand Forecast</span></h1><p>Configure demand predictions and grid capacity</p></div>''', unsafe_allow_html=True)
     v = registry().get(name, {})
-    st.markdown(f'<span class="ov-pill">Depot: {name} · Active model: LSTM ({v.get("active", "original")})</span>', unsafe_allow_html=True)
+    st.markdown(f'<span class="ov-pill">Depot: {name} · Model: {v.get("active", "original")}</span>', unsafe_allow_html=True)
 
     st.markdown(
         '<div class="ov-section"><strong>⚙️ Forecast settings</strong>'
@@ -1480,9 +1480,22 @@ def render_fast_forecast(name):
 
         import forecast_results_store
         try:
-            forecast_results_store.save(name, pred, capacity, 'LSTM 2 · 30-day forecast' if method.startswith('Dedicated') else ('LSTM 1 · hybrid forecast' if hours > 72 else 'LSTM 1 · short-term forecast'))
+            _saved_payload = forecast_results_store.save(
+                name, pred, capacity,
+                'LSTM 2 · 30-day forecast' if method.startswith('Dedicated')
+                else ('LSTM 1 · hybrid forecast' if hours > 72
+                      else 'LSTM 1 · short-term forecast'),
+            )
+            _saved_again = forecast_results_store.load(name)
+            if _saved_again is None or forecast_results_store.forecast_reference(_saved_again) != forecast_results_store.forecast_reference(_saved_payload):
+                st.error('The forecast was generated but could not be verified in shared storage. Planning, Alerts and Reports may not have it.')
+            else:
+                _ref = forecast_results_store.forecast_reference(_saved_again)
+                st.success(f'Forecast saved and verified for {name}. Shared forecast reference: {_ref}. Planning, System Alerts and Reports can now use this baseline.')
+                if forecast_results_store.last_save_status().get('storage') == 'browser session only':
+                    st.warning('The forecast is available across pages in this browser session, but local disk storage failed. It may be lost if the Streamlit session ends or the app restarts.')
         except Exception as exc:
-            st.warning(f'Forecast is available here, but could not be saved for other pages: {exc}')
+            st.error(f'Forecast generated, but shared save failed: {type(exc).__name__}: {exc}')
 
         peak = float(pred.max())
         breaches = pred >= capacity

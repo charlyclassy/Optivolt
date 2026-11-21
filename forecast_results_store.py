@@ -56,6 +56,17 @@ def validate_snapshot(payload, depot=None):
     return payload
 
 
+def _session_snapshots():
+    """Shared across Streamlit pages within the same logged-in browser session."""
+    import streamlit as st
+    return st.session_state.setdefault('optivolt_saved_forecast_snapshots', {})
+
+
+def _session_key(depot):
+    import depot_updates as dep
+    return f'{dep._scope()}::{depot.casefold().strip()}'
+
+
 def _path(depot):
     import depot_updates as dep
     return dep.depot_dir(depot) / 'latest_forecast.json'
@@ -84,21 +95,50 @@ def save(depot, prediction, capacity, model_label, model_version=None):
         comparable = ("depot", "model", "model_version", "capacity_kw", "timestamps", "demand_kw")
         if all(existing.get(field) == payload.get(field) for field in comparable):
             return existing
-    path = _path(depot)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix('.tmp')
-    tmp.write_text(json.dumps(payload), encoding='utf-8')
-    os.replace(tmp, path)
+    # Make the forecast immediately accessible to the other pages in this
+    # browser session, even if Streamlit Cloud's local disk is not writable.
+    _session_snapshots()[_session_key(depot)] = payload
+    try:
+        path = _path(depot)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix('.tmp')
+        tmp.write_text(json.dumps(payload), encoding='utf-8')
+        os.replace(tmp, path)
+        _save_status()['storage'] = 'session and local file'
+        _save_status()['detail'] = ''
+    except OSError as exc:
+        _save_status()['storage'] = 'browser session only'
+        _save_status()['detail'] = str(exc)
     return payload
 
 
+def _save_status():
+    import streamlit as st
+    return st.session_state.setdefault('optivolt_forecast_save_status', {})
+
+
+def last_save_status():
+    """Diagnostic status for the currently logged-in Streamlit session."""
+    return dict(_save_status())
+
+
 def load(depot):
+    # The currently generated result always wins over an older file snapshot.
+    # Session storage is scoped to both the organisation and the depot.
+    try:
+        session_payload = _session_snapshots().get(_session_key(depot))
+        if session_payload is not None:
+            return validate_snapshot(session_payload, depot)
+    except (ValueError, KeyError, TypeError, OSError):
+        pass
     path = _path(depot)
     if not path.is_file():
         return None
     try:
         payload = json.loads(path.read_text(encoding='utf-8'))
-        return validate_snapshot(payload, depot)
+        validated = validate_snapshot(payload, depot)
+        _session_snapshots()[_session_key(depot)] = validated
+        return validated
     except (OSError, ValueError, KeyError, TypeError):
         return None
 

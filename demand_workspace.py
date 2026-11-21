@@ -30,12 +30,15 @@ def render(selected=None):
     # This summary is visible BEFORE the forecast form, even without a saved result.
     # It confirms that the current deployment contains the consistency update.
     st.markdown('#### Saved LSTM Forecast · Consistency Check')
-    st.caption('Forecast consistency upgrade v1.1 · Shared baseline for Planning, Alerts and Reports')
+    st.caption('Forecast consistency upgrade v1.2 · Shared baseline for Planning, Alerts and Reports')
     try:
         import forecast_results_store as _ov_forecast_store
         _snapshot = _ov_forecast_store.load(depot)
         if _snapshot is None:
             st.info('No validated saved forecast for this depot. Generate a new LSTM forecast below; it will become the shared reference for Planning, Alerts and Reports.')
+            _save_diagnostics = _ov_forecast_store.last_save_status()
+            if _save_diagnostics.get('detail'):
+                st.caption('Last save diagnostic: ' + str(_save_diagnostics['detail']))
         else:
             _series = _snapshot['demand_kw']
             _ref = _ov_forecast_store.forecast_reference(_snapshot)
@@ -44,6 +47,9 @@ def render(selected=None):
             _col2.metric('Forecast grid limit', f"{float(_snapshot['capacity_kw']):.2f} kW")
             _col3.metric('Forecast readings', f'{len(_series):,}')
             st.success(f'Shared forecast reference: {_ref} · {depot} · {_snapshot["model"]}. Match this reference in Planning, Alerts and Reports.')
+            _storage = _ov_forecast_store.last_save_status().get('storage')
+            if _storage:
+                st.caption(f'Saved in: {_storage}. Local Streamlit storage is not guaranteed to survive an app restart.')
     except (ImportError, OSError, KeyError, TypeError, ValueError) as _forecast_exc:
         st.warning(f'Saved forecast status could not be checked: {_forecast_exc}')
     if source != SOURCES[0]:
