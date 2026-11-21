@@ -6270,35 +6270,39 @@ elif nav_selection == "🚗 Scenario Analysis":
         )
         # Compact dashboard cards replace the two oversized green info banners.
         st.markdown("""<style>
-        .ov-forecast-card-panel {border:1px solid #d7e3f2;border-radius:18px;
-          background:#f7faff;padding:20px 22px;margin:14px 0 24px;
-          box-shadow:0 6px 22px rgba(21,54,93,.055);}
+        .ov-forecast-card-panel {border:1px solid #cbdcf2;border-radius:18px;
+          background:#f4f8ff;padding:20px 22px;margin:14px 0 24px;
+          box-shadow:0 6px 22px rgba(21,54,93,.07);}
         .ov-forecast-card-heading {font-weight:800;color:#143c70;
           font-size:20px;margin:0 0 5px;}
         .ov-forecast-card-description {font-size:14px;color:#52647b;margin:0 0 17px;}
         .ov-forecast-card-grid {display:grid;
           grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;}
-        .ov-forecast-card {min-width:0;background:#fff;border:1px solid #dce7f2;
-          border-radius:13px;padding:14px 15px;box-shadow:0 2px 7px rgba(22,58,96,.035);}
-        .ov-forecast-card-label {display:block;font-size:12px;font-weight:700;
-          color:#5b6c81;margin-bottom:8px;letter-spacing:.02em;}
+        .ov-forecast-card {min-width:0;
+          background:linear-gradient(145deg,#214d82 0%,#153a6b 60%,#102f58 100%);
+          border:1px solid #3c72b0;border-radius:13px;padding:16px 17px;
+          box-shadow:0 5px 14px rgba(12,42,80,.16);}
+        .ov-forecast-card-label {display:block;font-size:12px;font-weight:750;
+          color:#c6dafa;margin-bottom:9px;letter-spacing:.035em;}
         .ov-forecast-card-value {display:block;font-size:21px;font-weight:800;
-          color:#142f52;line-height:1.25;overflow-wrap:anywhere;}
+          color:#ffffff;line-height:1.25;overflow-wrap:anywhere;}
         .ov-forecast-card-value.small {font-size:16px;}
-        .ov-forecast-card-sub {font-size:12px;color:#66778a;margin-top:5px;}
-        .ov-forecast-ready {border:1px solid #bee7d8;border-radius:14px;
-          background:#f2fcf7;padding:15px 18px;margin:14px 0 22px;}
+        .ov-forecast-card-sub {font-size:12px;color:#d6e5ff;margin-top:7px;}
+        .ov-forecast-ready {border:1px solid #b5ccea;border-radius:14px;
+          background:#edf4ff;padding:15px 18px;margin:14px 0 22px;}
         .ov-forecast-ready-grid {display:grid;grid-template-columns:1.15fr 1fr 1fr;
-          gap:12px;align-items:center;}
-        .ov-forecast-ready-item {min-width:0;padding:4px 10px;}
-        .ov-forecast-ready-item + .ov-forecast-ready-item {border-left:1px solid #cde7da;}
-        .ov-forecast-ready-label {color:#3e6573;font-size:12px;font-weight:700;
-          display:block;margin-bottom:5px;}
-        .ov-forecast-ready-value {color:#153b4a;font-size:16px;font-weight:800;
+          gap:12px;align-items:stretch;}
+        .ov-forecast-ready-item {min-width:0;padding:13px 14px;border-radius:12px;
+          background:linear-gradient(145deg,#214d82,#153a6b);
+          border:1px solid #3c72b0;}
+        .ov-forecast-ready-item + .ov-forecast-ready-item {border-left:1px solid #3c72b0;}
+        .ov-forecast-ready-label {color:#c6dafa;font-size:12px;font-weight:750;
+          display:block;margin-bottom:7px;letter-spacing:.025em;}
+        .ov-forecast-ready-value {color:#ffffff;font-size:16px;font-weight:800;
           overflow-wrap:anywhere;display:block;}
         @media(max-width:880px){.ov-forecast-card-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
         @media(max-width:550px){.ov-forecast-card-grid,.ov-forecast-ready-grid{grid-template-columns:1fr;}
-          .ov-forecast-ready-item + .ov-forecast-ready-item{border-left:0;border-top:1px solid #cde7da;}}
+          .ov-forecast-ready-item + .ov-forecast-ready-item{border-left:1px solid #3c72b0;border-top:0;}}
         </style>""", unsafe_allow_html=True)
         _forecast_ref_card = _planning_forecast_store.forecast_reference(_planning_payload)
         st.markdown(f"""<section class="ov-forecast-card-panel">
