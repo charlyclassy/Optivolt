@@ -9463,7 +9463,7 @@ elif nav_selection == "⚙️ Settings / Admin":
                 key="admin_portal_title",
             )
 
-        if st.button("Apply organisation settings", key="apply_org_settings"):
+        if st.button("Apply organisation settings", type="primary", key="apply_org_settings"):
             new_org_name = admin_org_name.strip() or "Optivolt Solutions Limited"
             new_portal_title = admin_portal_title.strip() or "Optivolt EV Depot Intelligence Portal"
 
@@ -9547,6 +9547,7 @@ elif nav_selection == "⚙️ Settings / Admin":
 
         if st.button(
             "Apply depot & alert settings",
+            type="primary",
             key="apply_depot_alert_settings",
             disabled=not confirm_large_threshold_change,
         ):
@@ -9648,7 +9649,7 @@ elif nav_selection == "⚙️ Settings / Admin":
                 key="admin_display_theme",
             )
 
-        if st.button("Apply forecast & display settings", key="apply_forecast_display"):
+        if st.button("Apply forecast & display settings", type="primary", key="apply_forecast_display"):
             _record_admin_changes(
                 "Forecast & Display Settings",
                 [
@@ -9686,7 +9687,7 @@ elif nav_selection == "⚙️ Settings / Admin":
         st.caption(
             "Sampling remains fixed at 15 minutes because the deployed LSTM was designed for a 96-step, 24-hour input sequence."
         )
-        if st.button("Apply data validation settings", key="apply_data_validation"):
+        if st.button("Apply data validation settings", type="primary", key="apply_data_validation"):
             _record_admin_changes(
                 "Data Validation Settings",
                 [
@@ -9759,7 +9760,7 @@ elif nav_selection == "⚙️ Settings / Admin":
                 key="admin_retrain_delta",
             )
 
-        if st.button("Apply retraining defaults", key="apply_retrain_defaults"):
+        if st.button("Apply retraining defaults", type="primary", key="apply_retrain_defaults"):
             _record_admin_changes(
                 "Uploaded-Depot Retraining Defaults",
                 [
@@ -9843,11 +9844,11 @@ elif nav_selection == "⚙️ Settings / Admin":
     st.subheader("Model Management")
     mm1, mm2 = st.columns(2)
     with mm1:
-        if st.button("Clear forecast cache", use_container_width=True, key="clear_forecast_cache"):
+        if st.button("Clear forecast cache", type="primary", use_container_width=True, key="clear_forecast_cache"):
             execute_production_ml_pipeline.clear()
             st.toast("Forecast cache cleared.")
     with mm2:
-        if st.button("Reload model resources", use_container_width=True, key="reload_model_resources"):
+        if st.button("Reload model resources", type="primary", use_container_width=True, key="reload_model_resources"):
             execute_production_ml_pipeline.clear()
             st.session_state["active_uploaded_pipeline"] = None
             st.session_state["active_uploaded_pipeline_depot"] = None
@@ -10112,3 +10113,60 @@ section[data-testid="stMain"] .stDownloadButton button:not(:disabled) * {color:#
 section[data-testid="stMain"] .stButton button:disabled,
 section[data-testid="stMain"] .stDownloadButton button:disabled {background:#E2E8F0!important;color:#334155!important;-webkit-text-fill-color:#334155!important;border:1px solid #94A3B8!important;opacity:1!important;}
 </style>""",unsafe_allow_html=True)
+
+
+# Admin Settings control contrast: enabled actions are navy with white text;
+# disabled actions remain grey with dark text, without changing disabled state.
+st.markdown("""<style>
+/* Scoped to the seven administrative action buttons only. */
+.st-key-apply_org_settings button:not(:disabled),
+.st-key-apply_depot_alert_settings button:not(:disabled),
+.st-key-apply_forecast_display button:not(:disabled),
+.st-key-apply_data_validation button:not(:disabled),
+.st-key-apply_retrain_defaults button:not(:disabled),
+.st-key-clear_forecast_cache button:not(:disabled),
+.st-key-reload_model_resources button:not(:disabled) {
+    background: #174B85 !important;
+    background-image: none !important;
+    border: 1px solid #174B85 !important;
+    color: #FFFFFF !important;
+    -webkit-text-fill-color: #FFFFFF !important;
+    opacity: 1 !important;
+}
+.st-key-apply_org_settings button:not(:disabled) *,
+.st-key-apply_depot_alert_settings button:not(:disabled) *,
+.st-key-apply_forecast_display button:not(:disabled) *,
+.st-key-apply_data_validation button:not(:disabled) *,
+.st-key-apply_retrain_defaults button:not(:disabled) *,
+.st-key-clear_forecast_cache button:not(:disabled) *,
+.st-key-reload_model_resources button:not(:disabled) * {
+    color: #FFFFFF !important;
+    -webkit-text-fill-color: #FFFFFF !important;
+    opacity: 1 !important;
+}
+.st-key-apply_org_settings button:disabled,
+.st-key-apply_depot_alert_settings button:disabled,
+.st-key-apply_forecast_display button:disabled,
+.st-key-apply_data_validation button:disabled,
+.st-key-apply_retrain_defaults button:disabled,
+.st-key-clear_forecast_cache button:disabled,
+.st-key-reload_model_resources button:disabled {
+    background: #D8E2EE !important;
+    background-image: none !important;
+    border: 1px solid #64748B !important;
+    color: #1E293B !important;
+    -webkit-text-fill-color: #1E293B !important;
+    opacity: 1 !important;
+}
+.st-key-apply_org_settings button:disabled *,
+.st-key-apply_depot_alert_settings button:disabled *,
+.st-key-apply_forecast_display button:disabled *,
+.st-key-apply_data_validation button:disabled *,
+.st-key-apply_retrain_defaults button:disabled *,
+.st-key-clear_forecast_cache button:disabled *,
+.st-key-reload_model_resources button:disabled * {
+    color: #1E293B !important;
+    -webkit-text-fill-color: #1E293B !important;
+    opacity: 1 !important;
+}
+</style>""", unsafe_allow_html=True)
