@@ -98,11 +98,79 @@ def render(selected=None):
         recommendation = 'No capacity intervention is indicated by this forecast. Continue routine monitoring.'
 
     st.subheader('Capacity Risk Summary')
-    a,b,c,d = st.columns(4)
-    a.metric('LSTM forecast peak demand', f"{risk['peak']:.2f} kW")
-    b.metric('Available grid headroom', f"{risk['headroom']:.2f} kW")
-    c.metric('Warning threshold', f"{risk['warning']:.2f} kW")
-    d.metric('Grid capacity threshold', f"{risk['capacity']:.2f} kW")
+    st.caption('Optivolt System Alerts · Dark-blue cards v2.0')
+    # Match the dark-blue cards used on Fleet Growth & Capacity Planning.
+    # Only the presentation changes; values still come from evaluate_snapshot().
+    st.markdown(
+        f"""
+        <style>
+        .ov-alert-metric-grid {{
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 16px;
+            margin: 0.25rem 0 0.7rem;
+        }}
+        .ov-alert-metric {{
+            box-sizing: border-box;
+            background: #173C70 !important;
+            background-color: #173C70 !important;
+            color: #FFFFFF !important;
+            -webkit-text-fill-color: #FFFFFF !important;
+            border: 1px solid #305f9b !important;
+            border-top: 4px solid #427aff;
+            border-radius: 17px;
+            padding: 22px 20px;
+            min-width: 0;
+            min-height: 146px;
+            box-shadow: 0 9px 22px rgba(13, 38, 85, 0.13);
+        }}
+        .ov-alert-metric-label {{
+            color: #cee0fb !important;
+            -webkit-text-fill-color: #cee0fb !important;
+            font-size: 0.96rem;
+            font-weight: 600;
+            line-height: 1.35;
+            margin-bottom: 17px;
+        }}
+        .ov-alert-metric-value {{
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            font-size: clamp(1.45rem, 2.15vw, 2.35rem);
+            font-weight: 800;
+            line-height: 1.15;
+            letter-spacing: -0.035em;
+            white-space: nowrap;
+        }}
+        @media (max-width: 1100px) {{
+            .ov-alert-metric-grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
+        }}
+        @media (max-width: 540px) {{
+            .ov-alert-metric-grid {{ grid-template-columns: 1fr; }}
+            .ov-alert-metric {{ min-height: 115px; }}
+            .ov-alert-metric-value {{ font-size: 1.9rem; }}
+        }}
+        </style>
+        <div class="ov-alert-metric-grid">
+          <div class="ov-alert-metric">
+            <div class="ov-alert-metric-label">LSTM forecast peak demand</div>
+            <div class="ov-alert-metric-value">{risk['peak']:.2f} kW</div>
+          </div>
+          <div class="ov-alert-metric">
+            <div class="ov-alert-metric-label">Available grid headroom</div>
+            <div class="ov-alert-metric-value">{risk['headroom']:.2f} kW</div>
+          </div>
+          <div class="ov-alert-metric">
+            <div class="ov-alert-metric-label">Warning threshold</div>
+            <div class="ov-alert-metric-value">{risk['warning']:.2f} kW</div>
+          </div>
+          <div class="ov-alert-metric">
+            <div class="ov-alert-metric-label">Grid capacity threshold</div>
+            <div class="ov-alert-metric-value">{risk['capacity']:.2f} kW</div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     st.caption(f"Peak utilisation: {risk['utilisation']:.1f}% of grid capacity · "
                f"Busiest predicted time: {risk['peak_time']:%d %b %H:%M}")
 
