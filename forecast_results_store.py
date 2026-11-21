@@ -186,20 +186,63 @@ def render(depot, heading='Latest forecast results'):
         '</style><div class="optivolt-forecast-metrics">' + cards + '</div>',
         unsafe_allow_html=True,
     )
-    st.caption(f'Forecast peak expected: {peak_at:%d %b %Y at %H:%M} · Forecast window: {times.min():%d %b %Y %H:%M} to {times.max():%d %b %Y %H:%M}')
+    # Match the dark-blue forecasting and planning metric cards. These are
+    # presentation-only summaries of the existing saved forecast, not new predictions.
+    energy_kwh = float(series.sum() * .25)
     if exceed:
-        st.warning(f'Predicted demand could exceed the depot grid limit for {exceed * .25:g} hours. '
-                   f'At its busiest, the depot may need {max(0., float(series.max()) - capacity):.2f} kW '
-                   'more than the configured capacity. Consider staggering vehicle charging, '
-                   'reducing peak charging, and checking the configured grid limit. '
-                   'This is a forecast, not a measured overload.')
+        capacity_status = 'Predicted capacity breach'
+        status_detail = (
+            f'Forecast exceeds the grid limit for {exceed * .25:g} hours; '
+            f'maximum predicted exceedance is {max(0., float(series.max()) - capacity):.2f} kW. '
+            'Consider staggering charging, reducing peak demand and checking the configured grid limit.'
+        )
+        status_accent = '#fda4af'
     elif above_warning:
-        st.info(f'Predicted demand stays within grid capacity, but reaches at least 80% of '
-                f'the limit for {above_warning * .25:g} hours. Consider monitoring busy charging periods.')
+        capacity_status = 'Capacity warning predicted'
+        status_detail = (
+            f'Forecast reaches at least 80% of the grid limit for '
+            f'{above_warning * .25:g} hours. Monitor busy charging periods.'
+        )
+        status_accent = '#fcd34d'
     else:
-        st.success('Predicted demand stays below 80% of the configured grid capacity during this forecast.')
-    st.caption(f'Total predicted electricity use: {series.sum() * .25:.1f} kWh. '
-               'These results are saved predictions, not live meter readings.')
+        capacity_status = 'Within capacity threshold'
+        status_detail = 'Predicted demand stays below 80% of the configured grid capacity during this forecast.'
+        status_accent = '#86efac'
+
+    # Escaping the dynamic text prevents depot-specific or imported information
+    # from being interpreted as HTML in the dashboard cards.
+    summary = [
+        ('Forecast peak expected', peak_at.strftime('%d %b %Y at %H:%M'), 'Busiest predicted interval'),
+        ('Forecast window', times.min().strftime('%d %b %Y %H:%M'),
+         'To ' + times.max().strftime('%d %b %Y %H:%M') + ' (last 15-minute reading)'),
+        ('Predicted electricity use', f'{energy_kwh:.1f} kWh', 'Saved forecast · not live meter readings'),
+        ('Capacity risk', capacity_status, status_detail),
+    ]
+    summary_cards = ''.join(
+        '<div class="optivolt-summary-card">'
+        f'<div class="optivolt-summary-label">{escape(label)}</div>'
+        f'<div class="optivolt-summary-value">{escape(value)}</div>'
+        f'<div class="optivolt-summary-detail">{escape(detail)}</div>'
+        '</div>'
+        for label, value, detail in summary
+    )
+    st.markdown(
+        '<style>'
+        '.optivolt-summary-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:16px 0 18px}'
+        '.optivolt-summary-card{min-width:0;box-sizing:border-box;border-radius:18px;padding:22px 22px 20px;'
+        'background:linear-gradient(145deg,#193c70 0%,#12305b 100%);border:1px solid #305f9b;'
+        'border-top:4px solid #427aff;box-shadow:0 9px 22px rgba(13,38,85,.13)}'
+        '.optivolt-summary-label{color:#cee0fb!important;font-size:.94rem;font-weight:600;line-height:1.4;margin-bottom:12px}'
+        '.optivolt-summary-value{color:#fff!important;font-weight:800;font-size:clamp(1.28rem,2vw,1.9rem);'
+        'line-height:1.25;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}'
+        '.optivolt-summary-detail{color:#d9e7fb!important;font-size:.91rem;line-height:1.5;'
+        'overflow-wrap:anywhere;margin-top:12px}'
+        '@media(max-width:740px){.optivolt-summary-grid{grid-template-columns:1fr}}'
+        '</style><div class="optivolt-summary-grid">' + summary_cards + '</div>',
+        unsafe_allow_html=True,
+    )
+    # Keep warning/breach severity explicit to assist users beyond card colour.
+    # No change to the underlying thresholds or forecast calculations.
     fig = go.Figure()
     fig.add_scatter(x=series.index, y=series.values, mode='lines', name='Predicted demand', line=dict(color='#087F8C', width=3))
     fig.add_hline(y=capacity, line_dash='dash', line_color='#DC2626', annotation_text='Grid capacity')
