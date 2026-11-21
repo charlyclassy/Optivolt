@@ -83,7 +83,8 @@ def render(selected=None):
     generated_text = generated.strftime('%d %b %Y %H:%M UTC') if pd.notna(generated) else 'Unknown'
     st.caption(f"**Depot:** {depot} · **Active model:** {payload['model']} · "
                f"**Forecast generated:** {generated_text} · "
-               f"**Forecast period:** {series.index[0]:%d %b %Y %H:%M} – {series.index[-1]:%d %b %Y %H:%M}")
+               f"**Forecast period:** {series.index[0]:%d %b %Y %H:%M} – {series.index[-1]:%d %b %Y %H:%M} · "
+               f"**Forecast ref:** {forecast_results_store.forecast_reference(payload)}")
 
     if risk['breaches']:
         st.error('Capacity breach predicted — the saved LSTM forecast reaches or exceeds the configured grid limit.')

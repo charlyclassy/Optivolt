@@ -3,10 +3,57 @@
 Results are written only after successful inference. No inference happens when reading.
 """
 import json
+import hashlib
+import math
 from html import escape
 import os
 from pathlib import Path
 import pandas as pd
+
+
+def forecast_reference(payload):
+    """Deterministic short reference for the *contents* of a forecast snapshot.
+
+    Works with existing saved files; does not depend on sessions or file paths.
+    A different threshold, horizon, timestamp or predicted value changes the ID.
+    """
+    fields = ("depot", "model", "model_version", "capacity_kw",
+              "generated_at_utc", "timestamps", "demand_kw")
+    canonical = json.dumps({key: payload.get(key) for key in fields},
+                           sort_keys=True, ensure_ascii=True,
+                           separators=(",", ":"), allow_nan=False)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:12].upper()
+
+
+def validate_snapshot(payload, depot=None):
+    """Validate a saved 15-minute demand forecast before any page uses it."""
+    if not isinstance(payload, dict):
+        raise ValueError("Forecast record is not an object.")
+    if not payload.get("depot") or (depot is not None and payload["depot"] != depot):
+        raise ValueError("Forecast depot does not match the selected depot.")
+    if not payload.get("model"):
+        raise ValueError("Forecast model is missing.")
+    timestamps = payload.get("timestamps")
+    values = payload.get("demand_kw")
+    if not isinstance(timestamps, list) or not isinstance(values, list) or not timestamps:
+        raise ValueError("Forecast timestamps or demand readings are missing.")
+    if len(timestamps) != len(values):
+        raise ValueError("Forecast timestamps and demand readings have different lengths.")
+    times = pd.DatetimeIndex(pd.to_datetime(timestamps, errors="raise"))
+    if times.hasnans or not times.is_monotonic_increasing or times.has_duplicates:
+        raise ValueError("Forecast timestamps are invalid or out of order.")
+    if len(times) > 1 and not (times[1:] - times[:-1] == pd.Timedelta(minutes=15)).all():
+        raise ValueError("Forecast must contain consecutive 15-minute readings.")
+    try:
+        demand = [float(v) for v in values]
+        capacity = float(payload["capacity_kw"])
+    except (TypeError, ValueError, KeyError) as exc:
+        raise ValueError("Forecast demand or capacity is not numeric.") from exc
+    if not all(math.isfinite(v) and v >= 0 for v in demand):
+        raise ValueError("Forecast contains negative or non-finite demand.")
+    if not math.isfinite(capacity) or capacity <= 0:
+        raise ValueError("Forecast grid capacity is invalid.")
+    return payload
 
 
 def _path(depot):
@@ -28,6 +75,7 @@ def save(depot, prediction, capacity, model_label, model_version=None):
         'timestamps': [pd.Timestamp(t).isoformat() for t in series.index],
         'demand_kw': [float(v) for v in series.to_numpy()],
     }
+    validate_snapshot(payload, depot)
     path = _path(depot)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix('.tmp')
@@ -42,11 +90,7 @@ def load(depot):
         return None
     try:
         payload = json.loads(path.read_text(encoding='utf-8'))
-        if payload.get('depot') != depot:
-            return None
-        if not payload.get('timestamps') or len(payload['timestamps']) != len(payload['demand_kw']):
-            return None
-        return payload
+        return validate_snapshot(payload, depot)
     except (OSError, ValueError, KeyError, TypeError):
         return None
 
@@ -64,7 +108,7 @@ def render(depot, heading='Latest forecast results'):
     capacity = float(payload['capacity_kw'])
     exceed = int((series > capacity).sum())
     above_warning = int((series >= capacity * .8).sum())
-    st.caption(f"{depot} · {payload['model']} · version {payload.get('model_version', 'active')} · generated {payload['generated_at_utc'][:16].replace('T',' ')} UTC")
+    st.caption(f"{depot} · {payload['model']} · version {payload.get('model_version', 'active')} · generated {payload.get('generated_at_utc', 'unknown')[:16].replace('T',' ')} UTC · Forecast ref: {forecast_reference(payload)}")
     peak_at = series.idxmax()
     # Local, responsive styling: do not change the Overview page's other widgets.
     forecast_metrics = [

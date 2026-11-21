@@ -45,6 +45,7 @@ def build_report(payload):
                           'Continue routine monitoring.')
     rows = [
         ('Depot Name', str(payload.get('depot', 'Unknown'))),
+        ('Forecast Reference', forecast_results_store.forecast_reference(payload)),
         ('Active Model', str(payload['model'])),
         ('Model Version', str(payload.get('model_version', 'active'))),
         ('Forecast Generated', generated_text),
@@ -138,7 +139,8 @@ def render(selected=None):
         return
     st.caption(f"**Depot:** {depot} · **Active model:** {payload.get('model', 'LSTM')} · "
                f"**Forecast period:** {risk['series'].index[0]:%d %b %Y %H:%M} – "
-               f"{risk['series'].index[-1]:%d %b %Y %H:%M}")
+               f"{risk['series'].index[-1]:%d %b %Y %H:%M} · "
+                f"**Forecast ref:** {forecast_results_store.forecast_reference(payload)}")
     a,b,c,d = st.columns(4)
     a.metric('LSTM forecast peak', f"{risk['peak']:.2f} kW")
     b.metric('Grid capacity', f"{risk['capacity']:.2f} kW")

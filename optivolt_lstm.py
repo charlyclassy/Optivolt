@@ -6274,7 +6274,8 @@ elif nav_selection == "🚗 Scenario Analysis":
             f"(end exclusive) · {_steps:,} readings · "
             f"{_steps / STEPS_PER_HOUR:g} hours · "
             f"peak {base_forecast.max():.2f} kW · "
-            f"forecast capacity {planning_threshold:.2f} kW."
+            f"forecast capacity {planning_threshold:.2f} kW · "
+            f"forecast ref {_planning_forecast_store.forecast_reference(_planning_payload)}."
         )
 
         # ------------------------------------------------------------
