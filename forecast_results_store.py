@@ -76,6 +76,14 @@ def save(depot, prediction, capacity, model_label, model_version=None):
         'demand_kw': [float(v) for v in series.to_numpy()],
     }
     validate_snapshot(payload, depot)
+    # Streamlit reruns the Demand Prediction page on every widget interaction.
+    # If a rerun displays the exact same forecast, do not overwrite its record
+    # or generate a different reference. This is NOT a new prediction.
+    existing = load(depot)
+    if existing is not None:
+        comparable = ("depot", "model", "model_version", "capacity_kw", "timestamps", "demand_kw")
+        if all(existing.get(field) == payload.get(field) for field in comparable):
+            return existing
     path = _path(depot)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix('.tmp')

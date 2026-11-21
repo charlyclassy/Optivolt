@@ -27,10 +27,28 @@ def render(selected=None):
         st.warning('No depot data is available. Upload a depot dataset first.')
         return
     depot=st.selectbox('Depot',names,index=names.index(default),key='dw_forecast_depot')
+    # This summary is visible BEFORE the forecast form, even without a saved result.
+    # It confirms that the current deployment contains the consistency update.
+    st.markdown('#### Saved LSTM Forecast · Consistency Check')
+    st.caption('Forecast consistency upgrade v1.1 · Shared baseline for Planning, Alerts and Reports')
+    try:
+        import forecast_results_store as _ov_forecast_store
+        _snapshot = _ov_forecast_store.load(depot)
+        if _snapshot is None:
+            st.info('No validated saved forecast for this depot. Generate a new LSTM forecast below; it will become the shared reference for Planning, Alerts and Reports.')
+        else:
+            _series = _snapshot['demand_kw']
+            _ref = _ov_forecast_store.forecast_reference(_snapshot)
+            _col1, _col2, _col3 = st.columns(3)
+            _col1.metric('Saved LSTM peak', f'{max(_series):.2f} kW')
+            _col2.metric('Forecast grid limit', f"{float(_snapshot['capacity_kw']):.2f} kW")
+            _col3.metric('Forecast readings', f'{len(_series):,}')
+            st.success(f'Shared forecast reference: {_ref} · {depot} · {_snapshot["model"]}. Match this reference in Planning, Alerts and Reports.')
+    except (ImportError, OSError, KeyError, TypeError, ValueError) as _forecast_exc:
+        st.warning(f'Saved forecast status could not be checked: {_forecast_exc}')
     if source != SOURCES[0]:
         st.caption('After saving a new depot, select it here. Newly uploaded depots need a compatible trained model before forecasting.')
     st.markdown('### 3 · Demand prediction')
-    st.caption('Active forecasting model: depot-specific LSTM. Historical XGBoost comparisons are not used for generating forecasts here.')
     try:
         model, scaler=dep.active_paths(depot)
         if not model.exists() or not scaler.exists():
