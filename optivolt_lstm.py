@@ -6268,15 +6268,61 @@ elif nav_selection == "🚗 Scenario Analysis":
             _planning_depot, _period_start.isoformat(), _period_end.isoformat(),
             _saved_forecast_key,
         )
-        st.success(
-            f"Saved LSTM baseline loaded · {_planning_depot} · "
-            f"{_period_start:%d %b %Y %H:%M} – {_period_end:%d %b %Y %H:%M} "
-            f"(end exclusive) · {_steps:,} readings · "
-            f"{_steps / STEPS_PER_HOUR:g} hours · "
-            f"peak {base_forecast.max():.2f} kW · "
-            f"forecast capacity {planning_threshold:.2f} kW · "
-            f"forecast ref {_planning_forecast_store.forecast_reference(_planning_payload)}."
-        )
+        # Compact dashboard cards replace the two oversized green info banners.
+        st.markdown("""<style>
+        .ov-forecast-card-panel {border:1px solid #d7e3f2;border-radius:18px;
+          background:#f7faff;padding:20px 22px;margin:14px 0 24px;
+          box-shadow:0 6px 22px rgba(21,54,93,.055);}
+        .ov-forecast-card-heading {font-weight:800;color:#143c70;
+          font-size:20px;margin:0 0 5px;}
+        .ov-forecast-card-description {font-size:14px;color:#52647b;margin:0 0 17px;}
+        .ov-forecast-card-grid {display:grid;
+          grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;}
+        .ov-forecast-card {min-width:0;background:#fff;border:1px solid #dce7f2;
+          border-radius:13px;padding:14px 15px;box-shadow:0 2px 7px rgba(22,58,96,.035);}
+        .ov-forecast-card-label {display:block;font-size:12px;font-weight:700;
+          color:#5b6c81;margin-bottom:8px;letter-spacing:.02em;}
+        .ov-forecast-card-value {display:block;font-size:21px;font-weight:800;
+          color:#142f52;line-height:1.25;overflow-wrap:anywhere;}
+        .ov-forecast-card-value.small {font-size:16px;}
+        .ov-forecast-card-sub {font-size:12px;color:#66778a;margin-top:5px;}
+        .ov-forecast-ready {border:1px solid #bee7d8;border-radius:14px;
+          background:#f2fcf7;padding:15px 18px;margin:14px 0 22px;}
+        .ov-forecast-ready-grid {display:grid;grid-template-columns:1.15fr 1fr 1fr;
+          gap:12px;align-items:center;}
+        .ov-forecast-ready-item {min-width:0;padding:4px 10px;}
+        .ov-forecast-ready-item + .ov-forecast-ready-item {border-left:1px solid #cde7da;}
+        .ov-forecast-ready-label {color:#3e6573;font-size:12px;font-weight:700;
+          display:block;margin-bottom:5px;}
+        .ov-forecast-ready-value {color:#153b4a;font-size:16px;font-weight:800;
+          overflow-wrap:anywhere;display:block;}
+        @media(max-width:880px){.ov-forecast-card-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
+        @media(max-width:550px){.ov-forecast-card-grid,.ov-forecast-ready-grid{grid-template-columns:1fr;}
+          .ov-forecast-ready-item + .ov-forecast-ready-item{border-left:0;border-top:1px solid #cde7da;}}
+        </style>""", unsafe_allow_html=True)
+        _forecast_ref_card = _planning_forecast_store.forecast_reference(_planning_payload)
+        st.markdown(f"""<section class="ov-forecast-card-panel">
+          <div class="ov-forecast-card-heading">Saved LSTM Forecast</div>
+          <p class="ov-forecast-card-description">Verified planning baseline from Demand Prediction</p>
+          <div class="ov-forecast-card-grid">
+            <div class="ov-forecast-card"><span class="ov-forecast-card-label">DEPOT</span>
+              <span class="ov-forecast-card-value small">{_html_escape(str(_planning_depot))}</span></div>
+            <div class="ov-forecast-card"><span class="ov-forecast-card-label">LSTM PEAK DEMAND</span>
+              <span class="ov-forecast-card-value">{base_forecast.max():,.2f} kW</span></div>
+            <div class="ov-forecast-card"><span class="ov-forecast-card-label">FORECAST GRID CAPACITY</span>
+              <span class="ov-forecast-card-value">{planning_threshold:,.2f} kW</span></div>
+            <div class="ov-forecast-card"><span class="ov-forecast-card-label">FORECAST PERIOD</span>
+              <span class="ov-forecast-card-value small">{_period_start:%d %b %Y %H:%M}</span>
+              <div class="ov-forecast-card-sub">To {_period_end:%d %b %Y %H:%M} (exclusive)</div></div>
+            <div class="ov-forecast-card"><span class="ov-forecast-card-label">DURATION &amp; READINGS</span>
+              <span class="ov-forecast-card-value">{_steps / STEPS_PER_HOUR:g} hours</span>
+              <div class="ov-forecast-card-sub">{_steps:,} readings · {SAMPLING_MINUTES}-minute intervals</div></div>
+            <div class="ov-forecast-card"><span class="ov-forecast-card-label">FORECAST REFERENCE</span>
+              <span class="ov-forecast-card-value small">{_html_escape(str(_forecast_ref_card))}</span>
+              <div class="ov-forecast-card-sub">Shared across Planning, Alerts and Reports</div></div>
+          </div>
+        </section>""", unsafe_allow_html=True)
+
 
         # ------------------------------------------------------------
         # Wide-range scenario presets
@@ -6467,8 +6513,16 @@ elif nav_selection == "🚗 Scenario Analysis":
         # Scenario setup
         # ------------------------------------------------------------
         if _has_model_baseline:
-            st.success(f"LSTM baseline ready · target {_planning_depot} · model {_borrowed_from or _planning_depot} · {_steps} forecast readings. "
-                       "You can now assess the planning conditions below.")
+            st.markdown(f"""<section class="ov-forecast-ready">
+              <div class="ov-forecast-ready-grid">
+                <div class="ov-forecast-ready-item"><span class="ov-forecast-ready-label">PLANNING STATUS</span>
+                  <span class="ov-forecast-ready-value">✓ Baseline ready</span></div>
+                <div class="ov-forecast-ready-item"><span class="ov-forecast-ready-label">MODEL DEPOT</span>
+                  <span class="ov-forecast-ready-value">{_html_escape(str(_borrowed_from or _planning_depot))}</span></div>
+                <div class="ov-forecast-ready-item"><span class="ov-forecast-ready-label">NEXT STEP</span>
+                  <span class="ov-forecast-ready-value">Adjust planning conditions ↓</span></div>
+              </div>
+            </section>""", unsafe_allow_html=True)
         st.markdown("### Step 2 — Apply planning conditions")
         st.caption("Choose a preset or adjust the eight operational controls. "
                    "These conditions modify the LSTM baseline; they do not retrain the model.")
