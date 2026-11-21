@@ -19,7 +19,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import streamlit as st
-from forecast_status_cards import render_card
 
 ROOT = Path(__file__).resolve().parent
 BUILTIN = {
@@ -1266,7 +1265,7 @@ def render_fast_forecast(name):
         st.markdown('**Method 1 — LSTM 1 · Short-term:** Up to 72 hours; recursive LSTM predictions.')
         st.markdown('**Method 2 — LSTM 1 · Hybrid:** Beyond 72 hours; LSTM 1 combined with historical demand profiles.')
         st.markdown('**Method 3 — LSTM 2 · Long-term:** Direct 30-day forecast after the latest observations, when available.')
-    st.caption('The five evaluation criteria below refer to held-out observed demand.')
+    st.caption('Compact held-out evaluation summary. All nine experiment criteria are available on the Model Performance page where matching evidence exists.')
     try:
         import json as _json
         from pathlib import Path as _Path
@@ -1316,7 +1315,7 @@ def render_fast_forecast(name):
             )
         main = _cell('MAE · average error', values['MAE (kW)'])
         extras = ''.join(_cell(label, values[label]) for label in (
-            'RMSE (kW)', 'R²', 'MAPE (%)', 'Peak demand error (kW)'))
+            'RMSE (kW)', 'R²'))
         return (
             '<div style="background:#17365d;border:1px solid #3478f6;'
             'border-top:4px solid #3478f6;border-radius:15px;padding:16px;'
@@ -1335,14 +1334,20 @@ def render_fast_forecast(name):
     with _right_card:
         st.markdown(_metric_card('LSTM 2 · Long-term', 'Direct forecast · 30 days', _long_metrics),
                     unsafe_allow_html=True)
-    # One compact disclosure keeps the forecast controls close to the cards.
+    # Secondary diagnostics stay accessible without crowding forecasting controls.
+    with st.expander('Additional saved-model evaluation metrics', expanded=False):
+        st.caption('These are saved model-specific held-out metrics, not the nine-criteria four-model experiment.')
+        st.dataframe(pd.DataFrame([
+            {'Model': 'LSTM 1 · Short-term', 'MAPE (%)': _short_metrics['MAPE (%)'], 'Peak demand error (kW)': _short_metrics['Peak demand error (kW)']},
+            {'Model': 'LSTM 2 · Long-term', 'MAPE (%)': _long_metrics['MAPE (%)'], 'Peak demand error (kW)': _long_metrics['Peak demand error (kW)']},
+        ]), hide_index=True, use_container_width=True)
     with st.expander('Understanding forecast accuracy and model confidence', expanded=False):
         st.markdown(
             '**Why these results matter**\n\n'
             'The scores use held-out UKPN demand. Smaller errors, especially at demand peaks, '
             'provide stronger evidence for grid-capacity planning. They do not guarantee '
             'accuracy on future dates.\n\n'
-            '**Reading the five measures**\n\n'
+            '**Reading the displayed measures**\n\n'
             '- **MAE:** Typical error in kW; lower is better.\n'
             '- **RMSE:** Gives extra weight to large forecasting mistakes; lower is better.\n'
             '- **R²:** Compares predictions with a constant-average baseline; negative values are a warning; higher is better (best = 1).\n'
@@ -1352,6 +1357,7 @@ def render_fast_forecast(name):
             '**Confidence:** These metrics support an evidence-based assessment, but reliability '
             'also depends on avoiding missed peaks and performing well on unseen real data.'
         )
+    st.caption('For capacity-risk detection scores, peak-demand MAE and training duration, open Model Performance → Nine-criteria evaluation. Scores are shown only where matching held-out evidence is available.')
     st.markdown('#### Forecast scenario')
     st.caption('Choose the prediction date and expected fleet growth, then generate a forecast.')
     scenario = mode.startswith('Future demand prediction')
@@ -1492,7 +1498,7 @@ def render_fast_forecast(name):
                 st.error('The forecast was generated but could not be verified in shared storage. Planning, Alerts and Reports may not have it.')
             else:
                 _ref = forecast_results_store.forecast_reference(_saved_again)
-                render_card('Forecast saved and verified', f'The LSTM forecast for {name} is saved and available to Fleet Growth & Capacity Planning, System Alerts and Reports.', tone='green', reference=_ref)
+                st.success(f'Forecast saved and verified for {name}. Shared forecast reference: {_ref}. Planning, System Alerts and Reports can now use this baseline.')
                 if forecast_results_store.last_save_status().get('storage') == 'browser session only':
                     st.warning('The forecast is available across pages in this browser session, but local disk storage failed. It may be lost if the Streamlit session ends or the app restarts.')
         except Exception as exc:

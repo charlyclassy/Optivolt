@@ -7620,6 +7620,23 @@ elif nav_selection == "⚙️ Model Performance":
                 st.plotly_chart(_error, use_container_width=True)
         else:
             st.info("No valid held-out observations are available for this depot.")
+    # Nine-criteria evidence: depot-specific held-out scores only.
+    try:
+        from nine_criteria_dashboard import depot_rows as _nine_depot_rows, render_dashboard as _nine_dashboard
+        _nine_rows = _nine_depot_rows(
+            y_test.values, xgb_predictions, baseline_predictions, y_test.index,
+            float(st.session_state["grid_limit"]), training_seconds=None,
+        )
+        _nine_dashboard(
+            _nine_rows, title="Nine-criteria evaluation · selected depot",
+            context=(f"{_performance_depot} held-out observed demand · capacity threshold "
+                     f"{float(st.session_state['grid_limit']):.2f} kW. "
+                     "Training duration is not present in the saved per-depot evaluation."),
+            key="selected_depot_evaluation",
+        )
+    except (ValueError, TypeError, ImportError, KeyError, OSError) as _nine_error:
+        st.warning(f"Nine-criteria depot evaluation unavailable: {_nine_error}")
+
     # Final four-model comparison is archived Bexleyheath evidence only.
     if _performance_depot == "Bexleyheath" and FINAL_METRICS_FILE.exists():
         try:
@@ -7634,6 +7651,20 @@ elif nav_selection == "⚙️ Model Performance":
             _cmp["Training_Time_Seconds"] = pd.to_numeric(_cmp["Training_Time_Seconds"], errors="raise")
             if _cmp["Model"].duplicated().any():
                 raise ValueError("Archived comparison contains duplicate model rows")
+            try:
+                from nine_criteria_dashboard import archived_rows as _nine_archived_rows, render_dashboard as _nine_dashboard
+                _archived_nine = _nine_archived_rows(FINAL_METRICS_FILE, FINAL_PREDICTIONS_FILE)
+                _nine_dashboard(
+                    _archived_nine, title="Nine-criteria evaluation · four-model experiment",
+                    context=("Archived Bexleyheath held-out experiment only. "
+                             "Peak-demand MAE is calculated from matching daily maxima in "
+                             "heldout_predictions_all_models.csv. Training durations come "
+                             "from model_comparison_metrics.csv. "
+                             "These results are not transferable to other depots or forecast horizons."),
+                    key="bexleyheath_four_model_experiment",
+                )
+            except (ValueError, TypeError, ImportError, KeyError, OSError) as _nine_archived_error:
+                st.warning(f"Archived nine-criteria comparison unavailable: {_nine_archived_error}")
             st.subheader("Final Model Comparison · archived experiment")
             st.caption(
                 "Historical saved comparison, not today's forecast or a currently running training job. "
