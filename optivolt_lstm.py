@@ -6241,13 +6241,17 @@ elif nav_selection == "🚗 Scenario Analysis":
 
     planning_threshold = float(st.session_state["grid_limit"])
     warning_threshold = float(st.session_state["warn_threshold"])
+    def _usable_planning_baseline(values, expected_length):
+        arr = np.asarray(values, dtype=float).reshape(-1)
+        return (len(arr) == expected_length and np.isfinite(arr).all()
+                and (arr >= 0).all() and bool(np.any(arr > 1e-6)))
+
     _saved_valid = False
     if _planning_payload:
         try:
             _candidate_times = pd.DatetimeIndex(pd.to_datetime(_planning_payload["timestamps"]))
             _candidate_values = np.asarray(_planning_payload["demand_kw"], dtype=float)
-            _saved_valid = (len(_candidate_values) == len(_requested_times)
-                and bool(np.all(np.isfinite(_candidate_values)))
+            _saved_valid = (_usable_planning_baseline(_candidate_values, len(_requested_times))
                 and _candidate_times.equals(_requested_times))
         except (KeyError, ValueError, TypeError):
             _saved_valid = False
@@ -6298,13 +6302,18 @@ elif nav_selection == "🚗 Scenario Analysis":
                     _model, _source_history, _scalers, int(np.ceil(_steps / STEPS_PER_HOUR)),
                     target_start=_period_start) if _steps > 288 else
                     _recursive_forecast(_model, _seed, _scalers, int(np.ceil(_steps / STEPS_PER_HOUR))))
-            _planning_cache[_planning_key] = np.asarray(_values[:_steps], dtype=float)
+            _forecast_values = np.asarray(_values[:_steps], dtype=float)
+            if not _usable_planning_baseline(_forecast_values, _steps):
+                raise ValueError("The LSTM produced an empty, invalid, or all-zero forecast. "
+                                 "Check the source depot history, saved model and scalers. "
+                                 "Planning results were not calculated from this forecast.")
+            _planning_cache[_planning_key] = _forecast_values
             st.success(f"LSTM demand forecast generated for {_period_start:%d %b %Y %H:%M}–{_period_end:%d %b %Y %H:%M}.")
         except Exception as exc:
             st.error(f"Could not generate the LSTM baseline: {exc}")
 
     _has_model_baseline = False
-    if _planning_key in _planning_cache and len(_planning_cache[_planning_key]) == _steps:
+    if _planning_key in _planning_cache and _usable_planning_baseline(_planning_cache[_planning_key], _steps):
         _has_model_baseline = True
         scenario_time_index = _requested_times
         base_forecast = np.asarray(_planning_cache[_planning_key], dtype=float)
@@ -6319,6 +6328,9 @@ elif nav_selection == "🚗 Scenario Analysis":
         base_forecast = _candidate_values
         st.success(f"Using the saved Demand Prediction forecast for {_planning_depot} and the selected dates.")
     else:
+        # Reject stale zero-valued baseline snapshots; never present them as valid.
+        if _planning_key in _planning_cache:
+            _planning_cache.pop(_planning_key, None)
         # Planning controls remain visible before inference. This is a historical
         # pattern reference, explicitly NOT an LSTM-generated forecast.
         _history_reference = history_series.sort_index().dropna()
@@ -6333,6 +6345,12 @@ elif nav_selection == "🚗 Scenario Analysis":
         st.info("Baseline not yet generated for these dates. A historical-pattern reference is available "
                 "for context only; it is not an LSTM prediction. Generate the LSTM baseline above "
                 "before assessing planning changes.")
+
+    # Do not allow missing/invalid forecasts to be represented by zero-filled charts.
+    if _has_model_baseline and not _usable_planning_baseline(base_forecast, _steps):
+        _has_model_baseline = False
+        st.error("The available baseline contains no positive LSTM demand readings. "
+                 "Generate a valid baseline before performing a planning assessment.")
 
     # ------------------------------------------------------------
     # Wide-range scenario presets
@@ -6703,8 +6721,9 @@ elif nav_selection == "🚗 Scenario Analysis":
                 disabled=not cap_enabled,
             )
 
-    # Explicit second stage: only display model-based planning results after
-    # the user confirms the currently selected assumptions.
+    # Calculate planning outcomes from the active controls on each Streamlit rerun.
+    # Changing any preset, slider, checkbox or input automatically updates the
+    # results and charts; an additional submit click is not required.
     _planning_inputs = {
         "depot": str(_planning_depot), "period": list(map(str, _planning_key)),
         "baseline": hashlib.sha256(np.asarray(base_forecast, dtype=np.float64).tobytes()).hexdigest(),
@@ -6715,45 +6734,20 @@ elif nav_selection == "🚗 Scenario Analysis":
         "cap": [cap_enabled, scenario_load_cap_kw],
         "capacity": planning_threshold, "warning": warning_threshold,
     }
-    _planning_signature = hashlib.sha256(json.dumps(_planning_inputs, sort_keys=True, default=str).encode()).hexdigest()
-    st.markdown("### Step 3 — Generate planning-based demand forecast")
-    st.caption("Apply the selected operational changes to the LSTM baseline, then compare "
-               "both forecasts, peak timing, headroom and grid-capacity risk.")
-    if st.button("Generate planning-based demand forecast", type="primary",
-                 key="planning_generate_adjusted", disabled=not _has_model_baseline):
-        st.session_state["planning_confirmed_signature"] = _planning_signature
+    _planning_signature = hashlib.sha256(json.dumps(
+        _planning_inputs, sort_keys=True, default=str).encode()).hexdigest()
+    st.markdown("### Step 3 — Planning-based demand forecast")
     if not _has_model_baseline:
-        st.markdown("""<div style="background:#102B50;border-radius:16px;padding:20px;margin:12px 0;">
-        <div style="color:#8EE8DE;font-weight:800;letter-spacing:.06em;">FORECAST &amp; CAPACITY IMPACT</div>
-        <div style="color:#FFFFFF;font-size:1.1rem;font-weight:700;margin:8px 0;">Results awaiting LSTM baseline</div>
-        <div style="color:#DCEBFA;">The four KPI cards, capacity assessment, comparison chart, utilisation, energy impact, capacity risk and recommendation will appear here after Steps 1 and 3 are complete.</div>
-        </div>""", unsafe_allow_html=True)
-        st.markdown('<div style="background:#102B50;color:#FFFFFF;border-radius:14px;padding:18px;">'
-                    '<strong style="color:#8EE8DE;">Step 1: LSTM baseline required</strong>'
-                    '<p style="color:#FFFFFF;">Generate the baseline with the saved LSTM above. '
-                    'Then generate the planning-based forecast to display the six results sections.</p></div>',
-                    unsafe_allow_html=True)
+        st.warning("No valid LSTM baseline is available for the selected depot and dates. "
+                   "Generate the LSTM baseline in Step 1 first. "
+                   "Planning adjustments cannot be evaluated without a baseline.")
         st.stop()
-    if st.session_state.get("planning_confirmed_signature") != _planning_signature:
-        # Explicit text fill prevents the global theme from rendering navy-on-navy.
-        st.markdown(
-            '<div style="background:#102B50 !important; color:#FFFFFF !important; '
-            '-webkit-text-fill-color:#FFFFFF !important; border:1px solid #456B98; '
-            'border-radius:14px; padding:18px 22px; line-height:1.6;">'
-            '<div style="color:#8EE8DE !important; '
-            '-webkit-text-fill-color:#8EE8DE !important; font-weight:800; '
-            'font-size:1.1rem; margin-bottom:8px;">'
-            'Step 3: Generate planning-based results</div>'
-            '<div style="color:#FFFFFF !important; '
-            '-webkit-text-fill-color:#FFFFFF !important;">'
-            'Your LSTM baseline is ready. Click '
-            '<strong style="color:#FFFFFF !important; '
-            '-webkit-text-fill-color:#FFFFFF !important;">'
-            'Generate planning-based demand forecast</strong> above '
-            'to display the six results sections.</div></div>',
-            unsafe_allow_html=True,
-        )
+    if not _usable_planning_baseline(base_forecast, _steps):
+        st.error("The LSTM baseline is zero-filled or invalid; planning results cannot be calculated.")
         st.stop()
+    st.caption("Planning results and charts update automatically when you change "
+               "a preset or any operational condition below.")
+    st.session_state["planning_confirmed_signature"] = _planning_signature
 
     # ------------------------------------------------------------
     # Apply scenario transformations

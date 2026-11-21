@@ -1,31 +1,27 @@
-# Optivolt Reports, System Alerts and Demand Prediction alignment
+# Optivolt — Fleet Growth & Capacity Planning correction
 
-## What this patch changes
+This patch updates only `optivolt_lstm.py`. The datasets, trained model files, experiment script and other application pages do not change.
 
-The **Reports** page now reads the **same latest saved depot-specific LSTM forecast** created in Demand Prediction and used by System Alerts. It does not run a separate legacy forecast or reuse legacy XGBoost metrics.
+## Changes
 
-- `app.py` — routes Reports to `forecast_reports.render`, retaining the previous System Alerts synchronisation route.
-- `forecast_reports.py` — new Reports page with forecast summary, capacity status, time-of-warning/breach, and consistent CSV/PDF exports and interval-level CSV.
-- `forecast_alerts.py` — retained from the previous alert synchronisation patch, and used to calculate capacity risk consistently on both pages.
+- The planning page rejects invalid, missing, non-finite, negative, or entirely zero LSTM baseline arrays. It does not misrepresent missing forecasts as zero demand.
+- If a saved Demand Prediction forecast matches the depot and the exact selected dates, it can be used as the planning baseline, subject to validity checks.
+- Newly generated LSTM baselines are checked before they enter the planning cache.
+- Planning inputs now update the scenario results automatically when the controls change; the additional planning-generation click is no longer needed.
+- The planning page displays a clear instruction if no valid LSTM baseline is available for the selected depot and date range.
 
-**No model weights, experiment code, or datasets have changed.** Historical training statistics, synthetic-data provenance, and performance metrics are **not available** from a saved future forecast snapshot and are not represented as if they were derived from it. Those should be reported separately using correctly associated model evaluation records.
+## Installation in GitHub Desktop
 
-## Install with GitHub Desktop
+1. Extract this ZIP.
+2. In GitHub Desktop, choose your Optivolt repository and click **Repository > Show in Explorer**.
+3. Copy the included `optivolt_lstm.py` into the repository root, replacing the existing file.
+4. Commit and push the change, then reboot or refresh your Streamlit app.
+5. In **Demand Prediction**, run a forecast for a selected depot and 72-hour period.
+6. In **Fleet Growth & Capacity Planning**, select **the same depot and dates**. Verify that the LSTM baseline is non-zero.
+7. Try **+20% fleet growth** and **New fixed site load** presets. The planning peak and comparison lines should now update without an extra button click.
 
-1. Extract this package.
-2. Select your Optivolt repository in GitHub Desktop and choose **Repository > Show in Explorer**.
-3. Copy `app.py`, `forecast_alerts.py`, and `forecast_reports.py` into the repository root, beside its existing `app.py`. Replace the existing `app.py` and `forecast_alerts.py` when prompted; `forecast_reports.py` is new.
-4. In GitHub Desktop, verify these three file changes and commit with `Sync reports with LSTM demand predictions and alerts`, then **Push origin**.
-5. Once Streamlit has deployed, select a depot in Demand Prediction and generate a fresh LSTM forecast. Visit System Alerts and Reports, selecting the **same depot**. The forecast peak, grid capacity, warning threshold and headroom must agree on all three screens.
-6. Download the operational **CSV and PDF** reports and verify that they show the same values.
-
-### Important behaviour
-
-- If no saved LSTM forecast is available, Reports prompts the user to run Demand Prediction first.
-- Changing capacity settings or source data does not retroactively change the last saved forecast. Generate a new prediction before reviewing updated reports or alerts.
-- The forecast is a scenario-dependent estimate, not measured future load or a verified contracted connection limit.
-- The original `dashboard/pages/reports.py` remains untouched because the integrated app routes its operational Reports navigation through the new module.
+If a valid LSTM baseline still cannot be generated, the app will display an error rather than displaying a false zero-demand result. A correct saved depot-specific model and scaler are still needed for independent planning forecasts.
 
 ## Verification
 
-Syntax checks passed for all three Python files. The report calculations and PDF rendering were checked with representative saved LSTM snapshots, including a no-alert case and an above-capacity case. The complete app has not been deployed or exercised against a live Streamlit Cloud session here.
+The changed Python file passed a syntax compilation check. End-to-end Streamlit deployment and model inference have not been tested in this environment.
