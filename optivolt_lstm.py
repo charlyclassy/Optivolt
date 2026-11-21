@@ -6489,7 +6489,7 @@ elif nav_selection == "🚗 Scenario Analysis":
     # Scenario setup
     # ------------------------------------------------------------
     if _has_model_baseline:
-        st.success(f"LSTM baseline ready · target {_planning_depot} · model {_planning_model_source} · {_steps} forecast readings. "
+        st.success(f"LSTM baseline ready · target {_planning_depot} · model {_borrowed_from or _planning_depot} · {_steps} forecast readings. "
                    "You can now assess the planning conditions below.")
     st.markdown("### Step 2 — Apply planning conditions")
     st.caption("Choose a preset or adjust the eight operational controls. "

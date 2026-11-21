@@ -1,27 +1,16 @@
-# Optivolt — Fleet Growth & Capacity Planning correction
+# Optivolt Planning — NameError fix
 
-This patch updates only `optivolt_lstm.py`. The datasets, trained model files, experiment script and other application pages do not change.
+This patch fixes the undefined `_planning_model_source` variable in the status message around line 6492 of `optivolt_lstm.py`.
 
-## Changes
+The status message now displays the known model source (`_borrowed_from` when a transfer model is explicitly selected, or `_planning_depot` otherwise).
 
-- The planning page rejects invalid, missing, non-finite, negative, or entirely zero LSTM baseline arrays. It does not misrepresent missing forecasts as zero demand.
-- If a saved Demand Prediction forecast matches the depot and the exact selected dates, it can be used as the planning baseline, subject to validity checks.
-- Newly generated LSTM baselines are checked before they enter the planning cache.
-- Planning inputs now update the scenario results automatically when the controls change; the additional planning-generation click is no longer needed.
-- The planning page displays a clear instruction if no valid LSTM baseline is available for the selected depot and date range.
+**Only this one line was changed.** Demand Prediction baseline reuse, all slider settings, scenario calculations, model weights, and other application files are unchanged.
 
-## Installation in GitHub Desktop
+## Install
 
 1. Extract this ZIP.
-2. In GitHub Desktop, choose your Optivolt repository and click **Repository > Show in Explorer**.
-3. Copy the included `optivolt_lstm.py` into the repository root, replacing the existing file.
-4. Commit and push the change, then reboot or refresh your Streamlit app.
-5. In **Demand Prediction**, run a forecast for a selected depot and 72-hour period.
-6. In **Fleet Growth & Capacity Planning**, select **the same depot and dates**. Verify that the LSTM baseline is non-zero.
-7. Try **+20% fleet growth** and **New fixed site load** presets. The planning peak and comparison lines should now update without an extra button click.
+2. Copy `optivolt_lstm.py` into the root of your cloned GitHub repository, replacing the current version.
+3. Commit and push with GitHub Desktop.
+4. Wait for Streamlit Cloud to deploy, then refresh and test Fleet Growth & Capacity Planning.
 
-If a valid LSTM baseline still cannot be generated, the app will display an error rather than displaying a false zero-demand result. A correct saved depot-specific model and scaler are still needed for independent planning forecasts.
-
-## Verification
-
-The changed Python file passed a syntax compilation check. End-to-end Streamlit deployment and model inference have not been tested in this environment.
+The file has passed Python syntax compilation. A full live Streamlit deployment has not been tested.
