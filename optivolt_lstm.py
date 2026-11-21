@@ -6898,9 +6898,9 @@ elif nav_selection == "🚗 Scenario Analysis":
     )
     _planning_util_pct = 100.0 * projected_peak / planning_threshold
     _planning_cards = [
-        ("LSTM BASELINE PEAK", f"{baseline_peak:.1f} kW", "Without planning adjustments", "#FFFFFF"),
-        ("PLANNING-BASED PEAK", f"{projected_peak:.1f} kW", _planning_peak_detail, "#8EE8DE"),
-        ("REMAINING HEADROOM", f"{headroom_to_planning:.1f} kW", "Capacity minus planning-based peak", "#FFFFFF"),
+        ("LSTM BASELINE PEAK", f"{baseline_peak:.2f} kW", "Without planning adjustments", "#FFFFFF"),
+        ("PLANNING-BASED PEAK", f"{projected_peak:.2f} kW", _planning_peak_detail, "#8EE8DE"),
+        ("REMAINING HEADROOM", f"{headroom_to_planning:.2f} kW", "Capacity minus planning-based peak", "#FFFFFF"),
         ("CAPACITY UTILISATION", f"{_planning_util_pct:.1f}%", f"Of {planning_threshold:.1f} kW configured limit", "#8EE8DE"),
     ]
     _planning_cards_html = ''.join(
@@ -7061,7 +7061,7 @@ elif nav_selection == "🚗 Scenario Analysis":
         orientation="h",
         marker_color=["#2563EB", "#0F766E"],
         customdata=np.array([[baseline_peak], [projected_peak]]),
-        text=[f"{baseline_peak:.1f} kW · {util_baseline:.1f}%", f"{projected_peak:.1f} kW · {util_scenario:.1f}%"],
+        text=[f"{baseline_peak:.2f} kW · {util_baseline:.1f}%", f"{projected_peak:.2f} kW · {util_scenario:.1f}%"],
         textposition="outside", cliponaxis=False,
         hovertemplate=(
             "%{y}: %{customdata[0]:.2f} kW peak"
