@@ -185,28 +185,58 @@ def render_archived_four_model_comparison(metrics_csv, predictions_csv):
     except (OSError, ValueError, KeyError, pd.errors.ParserError) as e:
         st.warning(f'Archived Bexleyheath comparison could not be loaded: {e}')
         return
-    cols = st.columns(4)
-    for col, item in zip(cols, records):
-        name = str(item['Model'])
-        cells = [('MAE', _format(item.get('MAE (kW)'), 'kW')),
-                 ('RMSE', _format(item.get('RMSE (kW)'), 'kW')),
-                 ('R²', _format(item.get('R²'), ''))]
-        card = ('<div style="background:#173C70;border:1px solid #3d79cf;border-radius:12px;'
-                'padding:14px;min-height:172px;">'
-                '<div style="font-weight:800;color:#FFFFFF!important;-webkit-text-fill-color:#FFFFFF!important;font-size:16px;margin-bottom:14px">'
-                + html.escape(name) + '</div>')
-        for label, val in cells:
-            card += ('<div style="color:#D5E7FF!important;-webkit-text-fill-color:#D5E7FF!important;font-size:12px;margin:5px 0">'
-                     + html.escape(label) + ': <strong style="color:#FFFFFF!important;-webkit-text-fill-color:#FFFFFF!important">'
-                     + html.escape(val) + '</strong></div>')
-        with col:
-            components.html('<html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;padding:0;background:transparent;font-family:Inter,Arial,sans-serif}*{box-sizing:border-box}</style></head><body>'+card+'</div></body></html>', height=182, scrolling=False)
     st.markdown('#### Full nine-criteria comparison · all four models')
+    # Embedded card layout isolates contrast from the application's global CSS.
+    # All values come from the same archived experiment; none are invented.
+    import textwrap
+    metric_definitions = [metric for _, group in CRITERIA for metric in group]
+    rendered_cards = []
+    for record in records:
+        name = html.escape(str(record['Model']))
+        tiles = []
+        for label, metric_key, unit, _direction in metric_definitions:
+            value = _format(record.get(metric_key), unit)
+            if metric_key == 'Training duration (s)' and record['Model'] == 'Previous-day same-time':
+                value = 'Not applicable'
+            tiles.append(
+                '<div class="metric">'
+                '<div class="metric-label">' + html.escape(label) + '</div>'
+                '<div class="metric-value">' + html.escape(value) + '</div>'
+                '</div>'
+            )
+        rendered_cards.append(
+            '<section class="model-card">'
+            '<h3 class="model-name">' + name + '</h3>'
+            '<div class="metric-grid">' + ''.join(tiles) + '</div>'
+            '</section>'
+        )
+    card_html = textwrap.dedent("""\
+        <!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+          * { box-sizing: border-box; }
+          html, body { margin:0; padding:0; background:transparent; color:#fff;
+            font-family: Inter, system-ui, -apple-system, 'Segoe UI', Arial, sans-serif; }
+          .models { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; padding:3px; }
+          .model-card { min-width:0; padding:19px; border-radius:18px;
+            border:2px solid #307BF5; background:#17365E; }
+          .model-name { margin:0 0 15px; font-size:clamp(19px,2vw,24px);
+            line-height:1.2; font-weight:800; color:#fff !important; }
+          .metric-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
+          .metric { min-width:0; min-height:76px; padding:10px 12px;
+            border-radius:11px; background:#234A76; border:1px solid #426A9A; }
+          .metric-label { color:#C6DAFA !important; font-size:12px; font-weight:650; line-height:1.3; }
+          .metric-value { color:#FFFFFF !important; font-size:clamp(15px,1.6vw,20px);
+            line-height:1.3; font-weight:800; margin-top:5px; overflow-wrap:anywhere; }
+          @media(max-width:700px){ .models{grid-template-columns:1fr;} .model-card{padding:15px;}}
+        </style></head><body><div class="models">""") + ''.join(rendered_cards) + '</div></body></html>'
+    # Fixed height is deliberately generous for readable 9-metric cards per model.
+    components.html(card_html, height=1120, scrolling=True)
+    st.caption('Bexleyheath held-out experiment only. Peak-demand MAE uses matched daily maxima; training duration reflects the original model-training run. The previous-day baseline requires no model training.')
     keys = ['Model'] + [metric[1] for _, metrics in CRITERIA for metric in metrics]
     frame = pd.DataFrame(records).reindex(columns=keys)
-    st.dataframe(frame, use_container_width=True, hide_index=True)
+    with st.expander('View the detailed nine-criteria comparison table', expanded=False):
+        st.dataframe(frame, use_container_width=True, hide_index=True)
     st.download_button('Download Bexleyheath four-model evaluation (CSV)',
                        frame.to_csv(index=False).encode('utf-8'),
                        file_name='bexleyheath_four_model_nine_criteria.csv', mime='text/csv',
                        key='bexleyheath_four_model_visible_download')
-    st.caption('Peak-demand MAE uses matched daily maxima from held-out predictions. The previous-day baseline has no trainable model, so its training duration is not applicable.')
