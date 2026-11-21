@@ -1,22 +1,13 @@
-# Optivolt — Fleet Growth & Capacity Planning restoration
+# Optivolt — Fleet Growth & Capacity Planning display fix
 
-This update replaces only `optivolt_lstm.py`. It is based on the version containing the successful Admin Settings contrast correction.
+## What changed
 
-## Behaviour
+The previous Planning page called `st.stop()` immediately after Step 1 whenever no compatible saved Demand Prediction forecast could be loaded. That prevented the remaining step headings from appearing.
 
-- Planning automatically uses the latest saved LSTM forecast for the currently selected depot from Demand Prediction.
-- The baseline demand series, start time, end time, horizon, and temporary capacity are read from that saved forecast. No independently calculated or older baseline is substituted.
-- To work with a different forecast date or duration, first generate the matching forecast in Demand Prediction; Planning will then use that new forecast automatically.
-- All planning presets and sliders remain available. Press **Generate planning-based demand forecast** to apply the selected conditions and compare the adjusted demand with the unchanged baseline.
-- If no valid saved LSTM forecast is available, the app displays guidance rather than a zero-demand result.
-- The Admin Settings contrast styling that was working in the previous version is retained.
+This revision leaves Step 2 and Step 3 visible with a clear explanation and disabled Generate button when there is no usable saved baseline. When a valid saved LSTM forecast exists, all the original planning sliders, Generate button, transformations and comparison charts remain available. The forecast data and computation logic have not been changed.
 
 ## Installation
 
-1. Extract this ZIP.
-2. Replace `optivolt_lstm.py` in the root of your GitHub repository.
-3. Commit and push using GitHub Desktop.
-4. After deployment, generate a fresh forecast in Demand Prediction, then open Fleet Growth & Capacity Planning for the same depot.
-5. Confirm the baseline peak matches Demand Prediction to two decimal places. Change a planning condition, click the Generate button, and check the adjusted peak and chart.
+Replace the root-level `optivolt_lstm.py` in your Streamlit GitHub repository, commit and push. Generate a forecast in Demand Prediction for the same depot, then return to Planning.
 
-No trained models, datasets, forecasts, or other app files are modified by this patch. This update passed Python syntax compilation but has not been tested inside your live Streamlit Cloud deployment.
+If the workflow still reports no saved baseline, check that Demand Prediction has persisted a latest-forecast record for the same organisation and depot; this update cannot invent a missing forecast.

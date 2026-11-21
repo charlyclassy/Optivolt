@@ -6240,1194 +6240,1204 @@ elif nav_selection == "🚗 Scenario Analysis":
             _has_model_baseline = False
 
     if not _has_model_baseline:
-        st.warning("There is no valid saved LSTM forecast for this depot. "
-                   "Open Demand Prediction, generate a forecast for the desired "
-                   "date and horizon, then return to Planning. No zero or older "
-                   "forecast will be substituted.")
-        st.stop()
+        st.warning(
+            "A saved LSTM forecast for the selected depot could not be loaded. "
+            "Open Demand Prediction, generate the forecast, then return here. "
+            "Planning never substitutes zero-filled or unrelated demand data."
+        )
+        st.markdown("### Step 2 — Apply planning conditions")
+        st.info(
+            "The planning conditions will be available once a valid Demand Prediction "
+            "forecast has been saved for this depot."
+        )
+        st.markdown("### Step 3 — Planning-based demand forecast")
+        st.button("Generate planning-based demand forecast",
+                  key="planning_generate_unavailable", disabled=True)
+        st.caption("Generate a demand forecast first; then use the planning sliders "
+                   "and this button to compare the adjusted demand with the LSTM baseline.")
+    else:
+        scenario_time_index = _candidate_times.copy()
+        base_forecast = _candidate_values.copy()
+        _steps = len(base_forecast)
+        _period_start = scenario_time_index[0]
+        _period_end = scenario_time_index[-1] + pd.Timedelta(minutes=SAMPLING_MINUTES)
+        _baseline_source = "Demand Prediction (saved LSTM forecast)"
+        planning_threshold = float(_planning_payload["capacity_kw"])
+        warning_threshold = planning_threshold * .8
+        _planning_key = (
+            _planning_depot, _period_start.isoformat(), _period_end.isoformat(),
+            _saved_forecast_key,
+        )
+        st.success(
+            f"Saved LSTM baseline loaded · {_planning_depot} · "
+            f"{_period_start:%d %b %Y %H:%M} – {_period_end:%d %b %Y %H:%M} "
+            f"(end exclusive) · {_steps:,} readings · "
+            f"{_steps / STEPS_PER_HOUR:g} hours · "
+            f"peak {base_forecast.max():.2f} kW · "
+            f"forecast capacity {planning_threshold:.2f} kW."
+        )
 
-    scenario_time_index = _candidate_times.copy()
-    base_forecast = _candidate_values.copy()
-    _steps = len(base_forecast)
-    _period_start = scenario_time_index[0]
-    _period_end = scenario_time_index[-1] + pd.Timedelta(minutes=SAMPLING_MINUTES)
-    _baseline_source = "Demand Prediction (saved LSTM forecast)"
-    planning_threshold = float(_planning_payload["capacity_kw"])
-    warning_threshold = planning_threshold * .8
-    _planning_key = (
-        _planning_depot, _period_start.isoformat(), _period_end.isoformat(),
-        _saved_forecast_key,
-    )
-    st.success(
-        f"Saved LSTM baseline loaded · {_planning_depot} · "
-        f"{_period_start:%d %b %Y %H:%M} – {_period_end:%d %b %Y %H:%M} "
-        f"(end exclusive) · {_steps:,} readings · "
-        f"{_steps / STEPS_PER_HOUR:g} hours · "
-        f"peak {base_forecast.max():.2f} kW · "
-        f"forecast capacity {planning_threshold:.2f} kW."
-    )
+        # ------------------------------------------------------------
+        # Wide-range scenario presets
+        # ------------------------------------------------------------
+        scenario_presets = {
+            "Current operations": {
+                "growth_pct": 0,
+                "reduction_pct": 0,
+                "fixed_load_kw": 0.0,
+                "coincidence_pct": 0,
+                "flexible_pct": 0,
+                "shift_hours": 0.0,
+                "stress_enabled": False,
+                "stress_start_hour": 2.0,
+                "stress_duration_hours": 1.0,
+                "stress_uplift_pct": 0,
+                "cap_enabled": False,
+                "load_cap_kw": warning_threshold,
+            },
+            "+10% fleet growth": {
+                "growth_pct": 10,
+                "reduction_pct": 0,
+                "fixed_load_kw": 0.0,
+                "coincidence_pct": 0,
+                "flexible_pct": 0,
+                "shift_hours": 0.0,
+                "stress_enabled": False,
+                "stress_start_hour": 2.0,
+                "stress_duration_hours": 1.0,
+                "stress_uplift_pct": 0,
+                "cap_enabled": False,
+                "load_cap_kw": warning_threshold,
+            },
+            "+20% fleet growth": {
+                "growth_pct": 20,
+                "reduction_pct": 0,
+                "fixed_load_kw": 0.0,
+                "coincidence_pct": 0,
+                "flexible_pct": 0,
+                "shift_hours": 0.0,
+                "stress_enabled": False,
+                "stress_start_hour": 2.0,
+                "stress_duration_hours": 1.0,
+                "stress_uplift_pct": 0,
+                "cap_enabled": False,
+                "load_cap_kw": warning_threshold,
+            },
+            "Managed charging": {
+                "growth_pct": 0,
+                "reduction_pct": 15,
+                "fixed_load_kw": 0.0,
+                "coincidence_pct": 0,
+                "flexible_pct": 35,
+                "shift_hours": 1.0,
+                "stress_enabled": False,
+                "stress_start_hour": 2.0,
+                "stress_duration_hours": 1.0,
+                "stress_uplift_pct": 0,
+                "cap_enabled": False,
+                "load_cap_kw": warning_threshold,
+            },
+            "20% growth + managed charging": {
+                "growth_pct": 20,
+                "reduction_pct": 15,
+                "fixed_load_kw": 0.0,
+                "coincidence_pct": 0,
+                "flexible_pct": 40,
+                "shift_hours": 1.0,
+                "stress_enabled": False,
+                "stress_start_hour": 2.0,
+                "stress_duration_hours": 1.0,
+                "stress_uplift_pct": 0,
+                "cap_enabled": False,
+                "load_cap_kw": warning_threshold,
+            },
+            "High coincidence charging": {
+                "growth_pct": 0,
+                "reduction_pct": 0,
+                "fixed_load_kw": 0.0,
+                "coincidence_pct": 35,
+                "flexible_pct": 0,
+                "shift_hours": 0.0,
+                "stress_enabled": False,
+                "stress_start_hour": 2.0,
+                "stress_duration_hours": 1.0,
+                "stress_uplift_pct": 0,
+                "cap_enabled": False,
+                "load_cap_kw": warning_threshold,
+            },
+            "Temporary charging surge": {
+                "growth_pct": 0,
+                "reduction_pct": 0,
+                "fixed_load_kw": 0.0,
+                "coincidence_pct": 0,
+                "flexible_pct": 0,
+                "shift_hours": 0.0,
+                "stress_enabled": True,
+                "stress_start_hour": 2.0,
+                "stress_duration_hours": 2.0,
+                "stress_uplift_pct": 50,
+                "cap_enabled": False,
+                "load_cap_kw": warning_threshold,
+            },
+            "New fixed site load": {
+                "growth_pct": 0,
+                "reduction_pct": 0,
+                "fixed_load_kw": 5.0,
+                "coincidence_pct": 0,
+                "flexible_pct": 0,
+                "shift_hours": 0.0,
+                "stress_enabled": False,
+                "stress_start_hour": 2.0,
+                "stress_duration_hours": 1.0,
+                "stress_uplift_pct": 0,
+                "cap_enabled": False,
+                "load_cap_kw": warning_threshold,
+            },
+            "Capacity-protection strategy": {
+                "growth_pct": 20,
+                "reduction_pct": 10,
+                "fixed_load_kw": 0.0,
+                "coincidence_pct": 0,
+                "flexible_pct": 50,
+                "shift_hours": 2.0,
+                "stress_enabled": False,
+                "stress_start_hour": 2.0,
+                "stress_duration_hours": 1.0,
+                "stress_uplift_pct": 0,
+                "cap_enabled": True,
+                "load_cap_kw": warning_threshold,
+            },
+            "High-growth stress test": {
+                "growth_pct": 50,
+                "reduction_pct": 0,
+                "fixed_load_kw": 2.0,
+                "coincidence_pct": 30,
+                "flexible_pct": 0,
+                "shift_hours": 0.0,
+                "stress_enabled": True,
+                "stress_start_hour": 3.0,
+                "stress_duration_hours": 2.0,
+                "stress_uplift_pct": 40,
+                "cap_enabled": False,
+                "load_cap_kw": warning_threshold,
+            },
+        }
 
-    # ------------------------------------------------------------
-    # Wide-range scenario presets
-    # ------------------------------------------------------------
-    scenario_presets = {
-        "Current operations": {
-            "growth_pct": 0,
-            "reduction_pct": 0,
-            "fixed_load_kw": 0.0,
-            "coincidence_pct": 0,
-            "flexible_pct": 0,
-            "shift_hours": 0.0,
-            "stress_enabled": False,
-            "stress_start_hour": 2.0,
-            "stress_duration_hours": 1.0,
-            "stress_uplift_pct": 0,
-            "cap_enabled": False,
-            "load_cap_kw": warning_threshold,
-        },
-        "+10% fleet growth": {
-            "growth_pct": 10,
-            "reduction_pct": 0,
-            "fixed_load_kw": 0.0,
-            "coincidence_pct": 0,
-            "flexible_pct": 0,
-            "shift_hours": 0.0,
-            "stress_enabled": False,
-            "stress_start_hour": 2.0,
-            "stress_duration_hours": 1.0,
-            "stress_uplift_pct": 0,
-            "cap_enabled": False,
-            "load_cap_kw": warning_threshold,
-        },
-        "+20% fleet growth": {
-            "growth_pct": 20,
-            "reduction_pct": 0,
-            "fixed_load_kw": 0.0,
-            "coincidence_pct": 0,
-            "flexible_pct": 0,
-            "shift_hours": 0.0,
-            "stress_enabled": False,
-            "stress_start_hour": 2.0,
-            "stress_duration_hours": 1.0,
-            "stress_uplift_pct": 0,
-            "cap_enabled": False,
-            "load_cap_kw": warning_threshold,
-        },
-        "Managed charging": {
-            "growth_pct": 0,
-            "reduction_pct": 15,
-            "fixed_load_kw": 0.0,
-            "coincidence_pct": 0,
-            "flexible_pct": 35,
-            "shift_hours": 1.0,
-            "stress_enabled": False,
-            "stress_start_hour": 2.0,
-            "stress_duration_hours": 1.0,
-            "stress_uplift_pct": 0,
-            "cap_enabled": False,
-            "load_cap_kw": warning_threshold,
-        },
-        "20% growth + managed charging": {
-            "growth_pct": 20,
-            "reduction_pct": 15,
-            "fixed_load_kw": 0.0,
-            "coincidence_pct": 0,
-            "flexible_pct": 40,
-            "shift_hours": 1.0,
-            "stress_enabled": False,
-            "stress_start_hour": 2.0,
-            "stress_duration_hours": 1.0,
-            "stress_uplift_pct": 0,
-            "cap_enabled": False,
-            "load_cap_kw": warning_threshold,
-        },
-        "High coincidence charging": {
-            "growth_pct": 0,
-            "reduction_pct": 0,
-            "fixed_load_kw": 0.0,
-            "coincidence_pct": 35,
-            "flexible_pct": 0,
-            "shift_hours": 0.0,
-            "stress_enabled": False,
-            "stress_start_hour": 2.0,
-            "stress_duration_hours": 1.0,
-            "stress_uplift_pct": 0,
-            "cap_enabled": False,
-            "load_cap_kw": warning_threshold,
-        },
-        "Temporary charging surge": {
-            "growth_pct": 0,
-            "reduction_pct": 0,
-            "fixed_load_kw": 0.0,
-            "coincidence_pct": 0,
-            "flexible_pct": 0,
-            "shift_hours": 0.0,
-            "stress_enabled": True,
-            "stress_start_hour": 2.0,
-            "stress_duration_hours": 2.0,
-            "stress_uplift_pct": 50,
-            "cap_enabled": False,
-            "load_cap_kw": warning_threshold,
-        },
-        "New fixed site load": {
-            "growth_pct": 0,
-            "reduction_pct": 0,
-            "fixed_load_kw": 5.0,
-            "coincidence_pct": 0,
-            "flexible_pct": 0,
-            "shift_hours": 0.0,
-            "stress_enabled": False,
-            "stress_start_hour": 2.0,
-            "stress_duration_hours": 1.0,
-            "stress_uplift_pct": 0,
-            "cap_enabled": False,
-            "load_cap_kw": warning_threshold,
-        },
-        "Capacity-protection strategy": {
-            "growth_pct": 20,
-            "reduction_pct": 10,
-            "fixed_load_kw": 0.0,
-            "coincidence_pct": 0,
-            "flexible_pct": 50,
-            "shift_hours": 2.0,
-            "stress_enabled": False,
-            "stress_start_hour": 2.0,
-            "stress_duration_hours": 1.0,
-            "stress_uplift_pct": 0,
-            "cap_enabled": True,
-            "load_cap_kw": warning_threshold,
-        },
-        "High-growth stress test": {
-            "growth_pct": 50,
-            "reduction_pct": 0,
-            "fixed_load_kw": 2.0,
-            "coincidence_pct": 30,
-            "flexible_pct": 0,
-            "shift_hours": 0.0,
-            "stress_enabled": True,
-            "stress_start_hour": 3.0,
-            "stress_duration_hours": 2.0,
-            "stress_uplift_pct": 40,
-            "cap_enabled": False,
-            "load_cap_kw": warning_threshold,
-        },
-    }
+        scenario_state_defaults = {
+            "scenario_growth_pct": 0,
+            "scenario_reduction_pct": 0,
+            "scenario_fixed_load_kw": 0.0,
+            "scenario_coincidence_pct": 0,
+            "scenario_flexible_pct": 0,
+            "scenario_shift_hours": 0.0,
+            "scenario_stress_enabled": False,
+            "scenario_stress_start_hour": 2.0,
+            "scenario_stress_duration_hours": 1.0,
+            "scenario_stress_uplift_pct": 0,
+            "scenario_cap_enabled": False,
+            "scenario_load_cap_kw": warning_threshold,
+        }
+        for _key, _default in scenario_state_defaults.items():
+            if _key not in st.session_state:
+                st.session_state[_key] = _default
 
-    scenario_state_defaults = {
-        "scenario_growth_pct": 0,
-        "scenario_reduction_pct": 0,
-        "scenario_fixed_load_kw": 0.0,
-        "scenario_coincidence_pct": 0,
-        "scenario_flexible_pct": 0,
-        "scenario_shift_hours": 0.0,
-        "scenario_stress_enabled": False,
-        "scenario_stress_start_hour": 2.0,
-        "scenario_stress_duration_hours": 1.0,
-        "scenario_stress_uplift_pct": 0,
-        "scenario_cap_enabled": False,
-        "scenario_load_cap_kw": warning_threshold,
-    }
-    for _key, _default in scenario_state_defaults.items():
-        if _key not in st.session_state:
-            st.session_state[_key] = _default
+        def _apply_scenario_preset():
+            selected = st.session_state.get("scenario_preset_selector", "Current operations")
+            if selected == "Custom":
+                return
+            values = scenario_presets[selected]
+            for _field, _value in [
+                ("scenario_growth_pct", int(values["growth_pct"])),
+                ("scenario_reduction_pct", int(values["reduction_pct"])),
+                ("scenario_fixed_load_kw", float(values["fixed_load_kw"])),
+                ("scenario_coincidence_pct", int(values["coincidence_pct"])),
+                ("scenario_flexible_pct", int(values["flexible_pct"])),
+                ("scenario_shift_hours", float(values["shift_hours"])),
+                ("scenario_stress_enabled", bool(values["stress_enabled"])),
+                ("scenario_stress_start_hour", float(values["stress_start_hour"])),
+                ("scenario_stress_duration_hours", float(values["stress_duration_hours"])),
+                ("scenario_stress_uplift_pct", int(values["stress_uplift_pct"])),
+                ("scenario_cap_enabled", bool(values["cap_enabled"])),
+                ("scenario_load_cap_kw", min(float(values["load_cap_kw"]), planning_threshold)),
+            ]:
+                st.session_state[_field] = _value
 
-    def _apply_scenario_preset():
-        selected = st.session_state.get("scenario_preset_selector", "Current operations")
-        if selected == "Custom":
-            return
-        values = scenario_presets[selected]
-        for _field, _value in [
-            ("scenario_growth_pct", int(values["growth_pct"])),
-            ("scenario_reduction_pct", int(values["reduction_pct"])),
-            ("scenario_fixed_load_kw", float(values["fixed_load_kw"])),
-            ("scenario_coincidence_pct", int(values["coincidence_pct"])),
-            ("scenario_flexible_pct", int(values["flexible_pct"])),
-            ("scenario_shift_hours", float(values["shift_hours"])),
-            ("scenario_stress_enabled", bool(values["stress_enabled"])),
-            ("scenario_stress_start_hour", float(values["stress_start_hour"])),
-            ("scenario_stress_duration_hours", float(values["stress_duration_hours"])),
-            ("scenario_stress_uplift_pct", int(values["stress_uplift_pct"])),
-            ("scenario_cap_enabled", bool(values["cap_enabled"])),
-            ("scenario_load_cap_kw", min(float(values["load_cap_kw"]), planning_threshold)),
-        ]:
-            st.session_state[_field] = _value
+        # ------------------------------------------------------------
+        # Scenario setup
+        # ------------------------------------------------------------
+        if _has_model_baseline:
+            st.success(f"LSTM baseline ready · target {_planning_depot} · model {_borrowed_from or _planning_depot} · {_steps} forecast readings. "
+                       "You can now assess the planning conditions below.")
+        st.markdown("### Step 2 — Apply planning conditions")
+        st.caption("Choose a preset or adjust the eight operational controls. "
+                   "These conditions modify the LSTM baseline; they do not retrain the model.")
+        preset_name = st.selectbox(
+            "Planning Preset",
+            list(scenario_presets.keys()) + ["Custom"],
+            index=0,
+            key="scenario_preset_selector",
+            on_change=_apply_scenario_preset,
+            help="Choose a ready-made operating case or Custom for manual configuration.",
+        )
 
-    # ------------------------------------------------------------
-    # Scenario setup
-    # ------------------------------------------------------------
-    if _has_model_baseline:
-        st.success(f"LSTM baseline ready · target {_planning_depot} · model {_borrowed_from or _planning_depot} · {_steps} forecast readings. "
-                   "You can now assess the planning conditions below.")
-    st.markdown("### Step 2 — Apply planning conditions")
-    st.caption("Choose a preset or adjust the eight operational controls. "
-               "These conditions modify the LSTM baseline; they do not retrain the model.")
-    preset_name = st.selectbox(
-        "Planning Preset",
-        list(scenario_presets.keys()) + ["Custom"],
-        index=0,
-        key="scenario_preset_selector",
-        on_change=_apply_scenario_preset,
-        help="Choose a ready-made operating case or Custom for manual configuration.",
-    )
+        st.markdown("#### Operational changes to assess")
 
-    st.markdown("#### Operational changes to assess")
+        st.markdown("""<style>
+        .st-key-ov_planning_growth, .st-key-ov_planning_flexibility {
+          background:#102B50 !important; border:1px solid #315578 !important;
+          border-radius:16px !important; padding:18px 20px !important;
+          box-shadow:0 8px 20px rgba(16,43,80,.12);
+        }
+        .st-key-ov_planning_growth label p, .st-key-ov_planning_flexibility label p,
+        .st-key-ov_planning_growth [data-testid="stMarkdownContainer"] p,
+        .st-key-ov_planning_flexibility [data-testid="stMarkdownContainer"] p {
+          color:#FFFFFF !important;
+        }
+        .st-key-ov_planning_growth h4, .st-key-ov_planning_flexibility h4 {color:#8EE8DE !important;}
+        /* Contrast only: widget labels, slider values, checkbox captions and help icons. */
+        .st-key-ov_planning_growth [data-testid="stWidgetLabel"],
+        .st-key-ov_planning_flexibility [data-testid="stWidgetLabel"],
+        .st-key-ov_planning_growth [data-testid="stWidgetLabel"] *,
+        .st-key-ov_planning_flexibility [data-testid="stWidgetLabel"] *,
+        .st-key-ov_planning_growth [data-testid="stSlider"] [data-testid="stTickBar"] *,
+        .st-key-ov_planning_flexibility [data-testid="stSlider"] [data-testid="stTickBar"] *,
+        .st-key-ov_planning_growth [data-testid="stSlider"] [data-testid="stThumbValue"],
+        .st-key-ov_planning_flexibility [data-testid="stSlider"] [data-testid="stThumbValue"],
+        .st-key-ov_planning_growth [data-testid="stCheckbox"] label,
+        .st-key-ov_planning_flexibility [data-testid="stCheckbox"] label,
+        .st-key-ov_planning_growth [data-testid="stCheckbox"] label *,
+        .st-key-ov_planning_flexibility [data-testid="stCheckbox"] label * {
+          color:#FFFFFF !important;
+          -webkit-text-fill-color:#FFFFFF !important;
+          opacity:1 !important;
+        }
+        .st-key-ov_planning_growth [data-testid="stSlider"] [data-baseweb="slider"] *,
+        .st-key-ov_planning_flexibility [data-testid="stSlider"] [data-baseweb="slider"] * {
+          --text-color:#FFFFFF;
+        }
+        .st-key-ov_planning_growth [data-testid="stTooltipIcon"] svg,
+        .st-key-ov_planning_flexibility [data-testid="stTooltipIcon"] svg,
+        .st-key-ov_planning_growth [data-testid="stWidgetLabel"] svg,
+        .st-key-ov_planning_flexibility [data-testid="stWidgetLabel"] svg {
+          color:#8EE8DE !important;
+          stroke:#8EE8DE !important;
+          opacity:1 !important;
+        }
+        /* Keep light input/select controls dark-on-light. */
+        .st-key-ov_planning_growth input,
+        .st-key-ov_planning_flexibility input,
+        .st-key-ov_planning_growth [data-baseweb="select"] *,
+        .st-key-ov_planning_flexibility [data-baseweb="select"] * {
+          color:#102B50 !important;
+          -webkit-text-fill-color:#102B50 !important;
+        }
+        </style>""", unsafe_allow_html=True)
+        left, right = st.columns(2, gap="medium")
 
-    st.markdown("""<style>
-    .st-key-ov_planning_growth, .st-key-ov_planning_flexibility {
-      background:#102B50 !important; border:1px solid #315578 !important;
-      border-radius:16px !important; padding:18px 20px !important;
-      box-shadow:0 8px 20px rgba(16,43,80,.12);
-    }
-    .st-key-ov_planning_growth label p, .st-key-ov_planning_flexibility label p,
-    .st-key-ov_planning_growth [data-testid="stMarkdownContainer"] p,
-    .st-key-ov_planning_flexibility [data-testid="stMarkdownContainer"] p {
-      color:#FFFFFF !important;
-    }
-    .st-key-ov_planning_growth h4, .st-key-ov_planning_flexibility h4 {color:#8EE8DE !important;}
-    /* Contrast only: widget labels, slider values, checkbox captions and help icons. */
-    .st-key-ov_planning_growth [data-testid="stWidgetLabel"],
-    .st-key-ov_planning_flexibility [data-testid="stWidgetLabel"],
-    .st-key-ov_planning_growth [data-testid="stWidgetLabel"] *,
-    .st-key-ov_planning_flexibility [data-testid="stWidgetLabel"] *,
-    .st-key-ov_planning_growth [data-testid="stSlider"] [data-testid="stTickBar"] *,
-    .st-key-ov_planning_flexibility [data-testid="stSlider"] [data-testid="stTickBar"] *,
-    .st-key-ov_planning_growth [data-testid="stSlider"] [data-testid="stThumbValue"],
-    .st-key-ov_planning_flexibility [data-testid="stSlider"] [data-testid="stThumbValue"],
-    .st-key-ov_planning_growth [data-testid="stCheckbox"] label,
-    .st-key-ov_planning_flexibility [data-testid="stCheckbox"] label,
-    .st-key-ov_planning_growth [data-testid="stCheckbox"] label *,
-    .st-key-ov_planning_flexibility [data-testid="stCheckbox"] label * {
-      color:#FFFFFF !important;
-      -webkit-text-fill-color:#FFFFFF !important;
-      opacity:1 !important;
-    }
-    .st-key-ov_planning_growth [data-testid="stSlider"] [data-baseweb="slider"] *,
-    .st-key-ov_planning_flexibility [data-testid="stSlider"] [data-baseweb="slider"] * {
-      --text-color:#FFFFFF;
-    }
-    .st-key-ov_planning_growth [data-testid="stTooltipIcon"] svg,
-    .st-key-ov_planning_flexibility [data-testid="stTooltipIcon"] svg,
-    .st-key-ov_planning_growth [data-testid="stWidgetLabel"] svg,
-    .st-key-ov_planning_flexibility [data-testid="stWidgetLabel"] svg {
-      color:#8EE8DE !important;
-      stroke:#8EE8DE !important;
-      opacity:1 !important;
-    }
-    /* Keep light input/select controls dark-on-light. */
-    .st-key-ov_planning_growth input,
-    .st-key-ov_planning_flexibility input,
-    .st-key-ov_planning_growth [data-baseweb="select"] *,
-    .st-key-ov_planning_flexibility [data-baseweb="select"] * {
-      color:#102B50 !important;
-      -webkit-text-fill-color:#102B50 !important;
-    }
-    </style>""", unsafe_allow_html=True)
-    left, right = st.columns(2, gap="medium")
+        with left:
+            with st.container(key="ov_planning_growth"):
+                st.markdown("#### Demand & Site Growth")
 
-    with left:
-        with st.container(key="ov_planning_growth"):
-            st.markdown("#### Demand & Site Growth")
-
-            scenario_growth_pct = st.slider(
-                "Fleet / Charging Demand Growth (%)",
-                min_value=0,
-                max_value=100,
-                step=5,
-                key="scenario_growth_pct",
-                help="Scales the genuine LSTM forecast upward to represent fleet or charging-demand growth.",
-            )
-
-            scenario_fixed_load_kw = st.number_input(
-                "Additional Fixed Site Load (kW)",
-                min_value=0.0,
-                max_value=max(1000.0, planning_threshold * 2.0),
-                step=0.5,
-                key="scenario_fixed_load_kw",
-                help="Adds a constant site load, for example new equipment or non-EV electrical demand.",
-            )
-
-            scenario_coincidence_pct = st.slider(
-                "Peak Charging Coincidence Uplift (%)",
-                min_value=0,
-                max_value=100,
-                step=5,
-                key="scenario_coincidence_pct",
-                help="Increases the higher-demand periods more strongly to simulate more vehicles charging at the same time.",
-            )
-
-            scenario_reduction_pct = st.slider(
-                "Managed Charging Reduction (%)",
-                min_value=0,
-                max_value=60,
-                step=5,
-                key="scenario_reduction_pct",
-                help="Reduces charging demand across the scenario to represent managed charging or operational efficiency.",
-            )
-
-    with right:
-        with st.container(key="ov_planning_flexibility"):
-            st.markdown("#### Flexibility, Events & Peak Management")
-
-            flexible_pct = st.slider(
-                "Flexible Charging Available (%)",
-                min_value=0,
-                max_value=100,
-                step=5,
-                key="scenario_flexible_pct",
-                help="Share of scenario demand that can be moved later in the forecast window.",
-            )
-
-            shift_hours = st.selectbox(
-                "Charging Time Shift",
-                [0.0, 0.5, 1.0, 2.0, 4.0],
-                format_func=lambda v: "No shift" if v == 0 else f"{v:g} hour" + ("s" if v != 1 else ""),
-                key="scenario_shift_hours",
-            )
-
-            stress_enabled = st.checkbox(
-                "Add temporary charging surge",
-                key="scenario_stress_enabled",
-                help="Adds a temporary demand uplift to simulate concentrated arrivals or an operational surge.",
-            )
-
-            if stress_enabled:
-                s1, s2 = st.columns(2)
-                with s1:
-                    stress_start_hour = st.number_input(
-                        "Surge starts after (hours)",
-                        min_value=0.0,
-                        max_value=max(0.0, float(st.session_state["forecast_horizon"]) - 0.25),
-                        step=0.5,
-                        key="scenario_stress_start_hour",
-                    )
-                with s2:
-                    stress_duration_hours = st.number_input(
-                        "Surge duration (hours)",
-                        min_value=0.25,
-                        max_value=max(0.25, float(st.session_state["forecast_horizon"])),
-                        step=0.25,
-                        key="scenario_stress_duration_hours",
-                    )
-
-                stress_uplift_pct = st.slider(
-                    "Temporary Surge Uplift (%)",
+                scenario_growth_pct = st.slider(
+                    "Fleet / Charging Demand Growth (%)",
                     min_value=0,
-                    max_value=150,
+                    max_value=100,
                     step=5,
-                    key="scenario_stress_uplift_pct",
+                    key="scenario_growth_pct",
+                    help="Scales the genuine LSTM forecast upward to represent fleet or charging-demand growth.",
+                )
+
+                scenario_fixed_load_kw = st.number_input(
+                    "Additional Fixed Site Load (kW)",
+                    min_value=0.0,
+                    max_value=max(1000.0, planning_threshold * 2.0),
+                    step=0.5,
+                    key="scenario_fixed_load_kw",
+                    help="Adds a constant site load, for example new equipment or non-EV electrical demand.",
+                )
+
+                scenario_coincidence_pct = st.slider(
+                    "Peak Charging Coincidence Uplift (%)",
+                    min_value=0,
+                    max_value=100,
+                    step=5,
+                    key="scenario_coincidence_pct",
+                    help="Increases the higher-demand periods more strongly to simulate more vehicles charging at the same time.",
+                )
+
+                scenario_reduction_pct = st.slider(
+                    "Managed Charging Reduction (%)",
+                    min_value=0,
+                    max_value=60,
+                    step=5,
+                    key="scenario_reduction_pct",
+                    help="Reduces charging demand across the scenario to represent managed charging or operational efficiency.",
+                )
+
+        with right:
+            with st.container(key="ov_planning_flexibility"):
+                st.markdown("#### Flexibility, Events & Peak Management")
+
+                flexible_pct = st.slider(
+                    "Flexible Charging Available (%)",
+                    min_value=0,
+                    max_value=100,
+                    step=5,
+                    key="scenario_flexible_pct",
+                    help="Share of scenario demand that can be moved later in the forecast window.",
+                )
+
+                shift_hours = st.selectbox(
+                    "Charging Time Shift",
+                    [0.0, 0.5, 1.0, 2.0, 4.0],
+                    format_func=lambda v: "No shift" if v == 0 else f"{v:g} hour" + ("s" if v != 1 else ""),
+                    key="scenario_shift_hours",
+                )
+
+                stress_enabled = st.checkbox(
+                    "Add temporary charging surge",
+                    key="scenario_stress_enabled",
+                    help="Adds a temporary demand uplift to simulate concentrated arrivals or an operational surge.",
+                )
+
+                if stress_enabled:
+                    s1, s2 = st.columns(2)
+                    with s1:
+                        stress_start_hour = st.number_input(
+                            "Surge starts after (hours)",
+                            min_value=0.0,
+                            max_value=max(0.0, float(st.session_state["forecast_horizon"]) - 0.25),
+                            step=0.5,
+                            key="scenario_stress_start_hour",
+                        )
+                    with s2:
+                        stress_duration_hours = st.number_input(
+                            "Surge duration (hours)",
+                            min_value=0.25,
+                            max_value=max(0.25, float(st.session_state["forecast_horizon"])),
+                            step=0.25,
+                            key="scenario_stress_duration_hours",
+                        )
+
+                    stress_uplift_pct = st.slider(
+                        "Temporary Surge Uplift (%)",
+                        min_value=0,
+                        max_value=150,
+                        step=5,
+                        key="scenario_stress_uplift_pct",
+                    )
+                else:
+                    stress_start_hour = float(st.session_state.get("scenario_stress_start_hour", 2.0))
+                    stress_duration_hours = float(st.session_state.get("scenario_stress_duration_hours", 1.0))
+                    stress_uplift_pct = int(st.session_state.get("scenario_stress_uplift_pct", 0))
+
+                cap_enabled = st.checkbox(
+                    "Apply peak-period load cap",
+                    key="scenario_cap_enabled",
+                    help="Tests a managed-charging ceiling without changing the trained LSTM.",
+                )
+
+                scenario_load_cap_kw = st.number_input(
+                    "Peak-period load cap (kW)",
+                    min_value=0.1,
+                    max_value=float(planning_threshold),
+                    step=0.5,
+                    key="scenario_load_cap_kw",
+                    disabled=not cap_enabled,
+                )
+
+        # Calculate a signature of all current planning inputs. Results are shown
+        # only after the user explicitly requests an assessment for these inputs.
+        _planning_inputs = {
+            "depot": str(_planning_depot), "period": list(map(str, _planning_key)),
+            "baseline": hashlib.sha256(np.asarray(base_forecast, dtype=np.float64).tobytes()).hexdigest(),
+            "growth": scenario_growth_pct, "fixed": scenario_fixed_load_kw,
+            "coincidence": scenario_coincidence_pct, "reduction": scenario_reduction_pct,
+            "flexible": flexible_pct, "shift": shift_hours,
+            "surge": [stress_enabled, stress_start_hour, stress_duration_hours, stress_uplift_pct],
+            "cap": [cap_enabled, scenario_load_cap_kw],
+            "capacity": planning_threshold, "warning": warning_threshold,
+        }
+        _planning_signature = hashlib.sha256(json.dumps(
+            _planning_inputs, sort_keys=True, default=str).encode()).hexdigest()
+        st.markdown("### Step 3 — Planning-based demand forecast")
+        if not _has_model_baseline:
+            st.warning("No valid LSTM baseline is available for the selected depot and dates. "
+                       "Generate the LSTM baseline in Step 1 first. "
+                       "Planning adjustments cannot be evaluated without a baseline.")
+            st.stop()
+        if not _usable_planning_baseline(base_forecast, _steps):
+            st.error("The LSTM baseline is zero-filled or invalid; planning results cannot be calculated.")
+            st.stop()
+        st.caption("Review the operational conditions above, then click the button below "
+                   "to calculate the planning comparison. Changing any condition requires a new calculation.")
+        st.caption(f"Baseline source: {_baseline_source or 'Unknown'} · "
+                   f"Peak demand: {float(np.max(base_forecast)):.2f} kW · "
+                   f"Period: {_period_start:%d %b %Y %H:%M} to {_period_end:%d %b %Y %H:%M}")
+        if st.button("Generate planning-based demand forecast", type="primary",
+                     key="planning_generate_scenario"):
+            st.session_state["planning_confirmed_signature"] = _planning_signature
+        if st.session_state.get("planning_confirmed_signature") != _planning_signature:
+            st.info("Click **Generate planning-based demand forecast** to apply the selected "
+                    "planning conditions and display the updated comparison.")
+            st.stop()
+
+        # ------------------------------------------------------------
+        # Apply scenario transformations
+        # ------------------------------------------------------------
+        scenario_y = base_forecast.copy()
+
+        # 1. Fleet / charging growth.
+        scenario_y *= 1.0 + float(scenario_growth_pct) / 100.0
+
+        # 2. Additional fixed site load.
+        scenario_y += float(scenario_fixed_load_kw)
+
+        # 3. Peak coincidence uplift.
+        #    The uplift grows with the relative demand level, so low-load periods
+        #    are affected less than already-high charging periods.
+        if scenario_coincidence_pct > 0 and np.max(scenario_y) > np.min(scenario_y):
+            normalised_load = (
+                (scenario_y - np.min(scenario_y))
+                / (np.max(scenario_y) - np.min(scenario_y))
+            )
+            coincidence_multiplier = (
+                1.0
+                + (float(scenario_coincidence_pct) / 100.0)
+                * np.power(normalised_load, 2)
+            )
+            scenario_y *= coincidence_multiplier
+
+        # 4. Managed charging reduction.
+        scenario_y *= 1.0 - float(scenario_reduction_pct) / 100.0
+
+        # 5. Shift the flexible component later in time.
+        shifted_beyond_horizon_kwh = 0.0
+        if flexible_pct > 0 and shift_hours > 0:
+            shift_steps = int(round(float(shift_hours) * 60 / SAMPLING_MINUTES))
+            flexible_share = np.clip(float(flexible_pct) / 100.0, 0.0, 1.0)
+
+            fixed_component = scenario_y * (1.0 - flexible_share)
+            flexible_component = scenario_y * flexible_share
+            shifted_component = np.zeros_like(flexible_component)
+
+            if shift_steps < len(flexible_component):
+                shifted_component[shift_steps:] = flexible_component[:-shift_steps]
+                shifted_beyond_horizon_kwh = float(
+                    np.sum(flexible_component[-shift_steps:])
+                    * (SAMPLING_MINUTES / 60.0)
                 )
             else:
-                stress_start_hour = float(st.session_state.get("scenario_stress_start_hour", 2.0))
-                stress_duration_hours = float(st.session_state.get("scenario_stress_duration_hours", 1.0))
-                stress_uplift_pct = int(st.session_state.get("scenario_stress_uplift_pct", 0))
+                shifted_beyond_horizon_kwh = float(
+                    np.sum(flexible_component) * (SAMPLING_MINUTES / 60.0)
+                )
 
-            cap_enabled = st.checkbox(
-                "Apply peak-period load cap",
-                key="scenario_cap_enabled",
-                help="Tests a managed-charging ceiling without changing the trained LSTM.",
+            scenario_y = fixed_component + shifted_component
+
+        # 6. Temporary charging surge.
+        stress_mask = np.zeros(len(scenario_y), dtype=bool)
+        if stress_enabled and stress_uplift_pct > 0:
+            stress_start_step = int(round(float(stress_start_hour) * 60 / SAMPLING_MINUTES))
+            stress_duration_steps = max(
+                1,
+                int(round(float(stress_duration_hours) * 60 / SAMPLING_MINUTES)),
             )
+            stress_end_step = min(len(scenario_y), stress_start_step + stress_duration_steps)
 
-            scenario_load_cap_kw = st.number_input(
-                "Peak-period load cap (kW)",
-                min_value=0.1,
-                max_value=float(planning_threshold),
-                step=0.5,
-                key="scenario_load_cap_kw",
-                disabled=not cap_enabled,
-            )
+            if stress_start_step < len(scenario_y):
+                stress_mask[stress_start_step:stress_end_step] = True
+                scenario_y[stress_mask] *= 1.0 + float(stress_uplift_pct) / 100.0
 
-    # Calculate a signature of all current planning inputs. Results are shown
-    # only after the user explicitly requests an assessment for these inputs.
-    _planning_inputs = {
-        "depot": str(_planning_depot), "period": list(map(str, _planning_key)),
-        "baseline": hashlib.sha256(np.asarray(base_forecast, dtype=np.float64).tobytes()).hexdigest(),
-        "growth": scenario_growth_pct, "fixed": scenario_fixed_load_kw,
-        "coincidence": scenario_coincidence_pct, "reduction": scenario_reduction_pct,
-        "flexible": flexible_pct, "shift": shift_hours,
-        "surge": [stress_enabled, stress_start_hour, stress_duration_hours, stress_uplift_pct],
-        "cap": [cap_enabled, scenario_load_cap_kw],
-        "capacity": planning_threshold, "warning": warning_threshold,
-    }
-    _planning_signature = hashlib.sha256(json.dumps(
-        _planning_inputs, sort_keys=True, default=str).encode()).hexdigest()
-    st.markdown("### Step 3 — Planning-based demand forecast")
-    if not _has_model_baseline:
-        st.warning("No valid LSTM baseline is available for the selected depot and dates. "
-                   "Generate the LSTM baseline in Step 1 first. "
-                   "Planning adjustments cannot be evaluated without a baseline.")
-        st.stop()
-    if not _usable_planning_baseline(base_forecast, _steps):
-        st.error("The LSTM baseline is zero-filled or invalid; planning results cannot be calculated.")
-        st.stop()
-    st.caption("Review the operational conditions above, then click the button below "
-               "to calculate the planning comparison. Changing any condition requires a new calculation.")
-    st.caption(f"Baseline source: {_baseline_source or 'Unknown'} · "
-               f"Peak demand: {float(np.max(base_forecast)):.2f} kW · "
-               f"Period: {_period_start:%d %b %Y %H:%M} to {_period_end:%d %b %Y %H:%M}")
-    if st.button("Generate planning-based demand forecast", type="primary",
-                 key="planning_generate_scenario"):
-        st.session_state["planning_confirmed_signature"] = _planning_signature
-    if st.session_state.get("planning_confirmed_signature") != _planning_signature:
-        st.info("Click **Generate planning-based demand forecast** to apply the selected "
-                "planning conditions and display the updated comparison.")
-        st.stop()
-
-    # ------------------------------------------------------------
-    # Apply scenario transformations
-    # ------------------------------------------------------------
-    scenario_y = base_forecast.copy()
-
-    # 1. Fleet / charging growth.
-    scenario_y *= 1.0 + float(scenario_growth_pct) / 100.0
-
-    # 2. Additional fixed site load.
-    scenario_y += float(scenario_fixed_load_kw)
-
-    # 3. Peak coincidence uplift.
-    #    The uplift grows with the relative demand level, so low-load periods
-    #    are affected less than already-high charging periods.
-    if scenario_coincidence_pct > 0 and np.max(scenario_y) > np.min(scenario_y):
-        normalised_load = (
-            (scenario_y - np.min(scenario_y))
-            / (np.max(scenario_y) - np.min(scenario_y))
-        )
-        coincidence_multiplier = (
-            1.0
-            + (float(scenario_coincidence_pct) / 100.0)
-            * np.power(normalised_load, 2)
-        )
-        scenario_y *= coincidence_multiplier
-
-    # 4. Managed charging reduction.
-    scenario_y *= 1.0 - float(scenario_reduction_pct) / 100.0
-
-    # 5. Shift the flexible component later in time.
-    shifted_beyond_horizon_kwh = 0.0
-    if flexible_pct > 0 and shift_hours > 0:
-        shift_steps = int(round(float(shift_hours) * 60 / SAMPLING_MINUTES))
-        flexible_share = np.clip(float(flexible_pct) / 100.0, 0.0, 1.0)
-
-        fixed_component = scenario_y * (1.0 - flexible_share)
-        flexible_component = scenario_y * flexible_share
-        shifted_component = np.zeros_like(flexible_component)
-
-        if shift_steps < len(flexible_component):
-            shifted_component[shift_steps:] = flexible_component[:-shift_steps]
-            shifted_beyond_horizon_kwh = float(
-                np.sum(flexible_component[-shift_steps:])
+        # 7. Optional peak load cap.
+        pre_cap_scenario = scenario_y.copy()
+        capped_energy_kwh = 0.0
+        if cap_enabled:
+            cap_value = float(scenario_load_cap_kw)
+            capped_energy_kwh = float(
+                np.sum(np.clip(pre_cap_scenario - cap_value, 0.0, None))
                 * (SAMPLING_MINUTES / 60.0)
             )
+            scenario_y = np.minimum(scenario_y, cap_value)
+
+        # Physical safeguard.
+        scenario_y = np.clip(scenario_y, 0.0, None)
+
+        # ------------------------------------------------------------
+        # Metrics and timing
+        # ------------------------------------------------------------
+        base_peak_time = pd.Timestamp(scenario_time_index[int(np.argmax(base_forecast))])
+        planning_peak_time = pd.Timestamp(scenario_time_index[int(np.argmax(scenario_y))])
+        base_peak = float(np.max(base_forecast))
+        scenario_peak = float(np.max(scenario_y))
+
+        base_headroom = planning_threshold - base_peak
+        scenario_headroom = planning_threshold - scenario_peak
+
+        base_warning_intervals = int(np.sum(base_forecast >= warning_threshold))
+        scenario_warning_intervals = int(np.sum(scenario_y >= warning_threshold))
+
+        base_breach_intervals = int(np.sum(base_forecast >= planning_threshold))
+        scenario_breach_intervals = int(np.sum(scenario_y >= planning_threshold))
+
+        base_warning_minutes = base_warning_intervals * SAMPLING_MINUTES
+        scenario_warning_minutes = scenario_warning_intervals * SAMPLING_MINUTES
+
+        base_breach_minutes = base_breach_intervals * SAMPLING_MINUTES
+        scenario_breach_minutes = scenario_breach_intervals * SAMPLING_MINUTES
+
+        base_first_warning = (
+            scenario_time_index[np.where(base_forecast >= warning_threshold)[0][0]]
+            if base_warning_intervals > 0 else None
+        )
+        scenario_first_warning = (
+            scenario_time_index[np.where(scenario_y >= warning_threshold)[0][0]]
+            if scenario_warning_intervals > 0 else None
+        )
+
+        base_first_breach = (
+            scenario_time_index[np.where(base_forecast >= planning_threshold)[0][0]]
+            if base_breach_intervals > 0 else None
+        )
+        scenario_first_breach = (
+            scenario_time_index[np.where(scenario_y >= planning_threshold)[0][0]]
+            if scenario_breach_intervals > 0 else None
+        )
+
+        base_energy_kwh = float(np.sum(base_forecast) * SAMPLING_MINUTES / 60.0)
+        scenario_energy_kwh = float(np.sum(scenario_y) * SAMPLING_MINUTES / 60.0)
+
+        peak_delta = scenario_peak - base_peak
+        headroom_delta = scenario_headroom - base_headroom
+        energy_delta = scenario_energy_kwh - base_energy_kwh
+
+        # ------------------------------------------------------------
+        # Outcome strip
+        # ------------------------------------------------------------
+        # Four KPI cards are rendered in the consolidated navy results section
+        # immediately after the forecast comparison chart.
+
+        # ------------------------------------------------------------
+        # Decision-focused capacity and headroom visualisations
+        # ------------------------------------------------------------
+        # Baseline and scenario are derived from the same forecast window.
+        # These are application planning values, not verified connection limits.
+        base_headroom_series = planning_threshold - base_forecast
+        scenario_headroom_series = planning_threshold - scenario_y
+        warning_headroom = max(0.0, planning_threshold - warning_threshold)
+        baseline_peak = float(base_peak)
+        projected_peak = float(scenario_peak)
+        peak_change = projected_peak - baseline_peak
+        headroom_to_warning = warning_threshold - projected_peak
+        headroom_to_planning = planning_threshold - projected_peak
+
+        if projected_peak >= planning_threshold:
+            risk_status = "Grid capacity exceeded"
+            risk_colour = "#DC2626"
+            risk_description = (
+                f"Scenario peak is {projected_peak - planning_threshold:.1f} kW above "
+                "the grid capacity. Review the proposed charging schedule."
+            )
+        elif projected_peak >= warning_threshold:
+            risk_status = "Warning: approaching grid capacity"
+            risk_colour = "#D97706"
+            risk_description = (
+                f"Scenario peak is within the warning band, with "
+                f"{headroom_to_planning:.1f} kW remaining before the grid capacity."
+            )
         else:
-            shifted_beyond_horizon_kwh = float(
-                np.sum(flexible_component) * (SAMPLING_MINUTES / 60.0)
+            risk_status = "Within grid capacity"
+            risk_colour = "#0F766E"
+            risk_description = (
+                f"Scenario peak remains below the warning level and leaves "
+                f"{headroom_to_planning:.1f} kW of grid headroom."
             )
 
-        scenario_y = fixed_component + shifted_component
+        # Presentation-only planning summary. All values come from the existing
+        # forecast and planning calculations; no forecasting logic is changed.
+        from html import escape as _planning_escape
 
-    # 6. Temporary charging surge.
-    stress_mask = np.zeros(len(scenario_y), dtype=bool)
-    if stress_enabled and stress_uplift_pct > 0:
-        stress_start_step = int(round(float(stress_start_hour) * 60 / SAMPLING_MINUTES))
-        stress_duration_steps = max(
-            1,
-            int(round(float(stress_duration_hours) * 60 / SAMPLING_MINUTES)),
+        def _planning_navy_card(label, value, detail, accent="#8EE8DE"):
+            return (
+                '<div style="background:#1D426D;border:1px solid #365C84;'
+                'border-radius:14px;padding:17px 18px;min-height:126px;">'
+                f'<div style="color:#C7DCEF;font-size:.79rem;font-weight:750;'
+                f'letter-spacing:.06em;">{_planning_escape(label)}</div>'
+                f'<div style="color:{accent};font-size:1.85rem;line-height:1.3;'
+                f'font-weight:800;margin:8px 0 4px;">{_planning_escape(value)}</div>'
+                f'<div style="color:#DFECF8;font-size:.85rem;">{_planning_escape(detail)}</div>'
+                '</div>'
+            )
+
+        _planning_peak_pct = 100.0 * peak_change / baseline_peak if baseline_peak > 1e-9 else None
+        _planning_peak_detail = (
+            f"{peak_change:+.1f} kW ({_planning_peak_pct:+.1f}%) vs baseline"
+            if _planning_peak_pct is not None else f"{peak_change:+.1f} kW vs baseline"
         )
-        stress_end_step = min(len(scenario_y), stress_start_step + stress_duration_steps)
-
-        if stress_start_step < len(scenario_y):
-            stress_mask[stress_start_step:stress_end_step] = True
-            scenario_y[stress_mask] *= 1.0 + float(stress_uplift_pct) / 100.0
-
-    # 7. Optional peak load cap.
-    pre_cap_scenario = scenario_y.copy()
-    capped_energy_kwh = 0.0
-    if cap_enabled:
-        cap_value = float(scenario_load_cap_kw)
-        capped_energy_kwh = float(
-            np.sum(np.clip(pre_cap_scenario - cap_value, 0.0, None))
-            * (SAMPLING_MINUTES / 60.0)
+        _planning_util_pct = 100.0 * projected_peak / planning_threshold
+        _planning_cards = [
+            ("LSTM BASELINE PEAK", f"{baseline_peak:.2f} kW", "Without planning adjustments", "#FFFFFF"),
+            ("PLANNING-BASED PEAK", f"{projected_peak:.2f} kW", _planning_peak_detail, "#8EE8DE"),
+            ("REMAINING HEADROOM", f"{headroom_to_planning:.2f} kW", "Capacity minus planning-based peak", "#FFFFFF"),
+            ("CAPACITY UTILISATION", f"{_planning_util_pct:.1f}%", f"Of {planning_threshold:.1f} kW configured limit", "#8EE8DE"),
+        ]
+        _planning_cards_html = ''.join(
+            _planning_navy_card(label, value, detail, accent)
+            for label, value, detail, accent in _planning_cards
         )
-        scenario_y = np.minimum(scenario_y, cap_value)
-
-    # Physical safeguard.
-    scenario_y = np.clip(scenario_y, 0.0, None)
-
-    # ------------------------------------------------------------
-    # Metrics and timing
-    # ------------------------------------------------------------
-    base_peak_time = pd.Timestamp(scenario_time_index[int(np.argmax(base_forecast))])
-    planning_peak_time = pd.Timestamp(scenario_time_index[int(np.argmax(scenario_y))])
-    base_peak = float(np.max(base_forecast))
-    scenario_peak = float(np.max(scenario_y))
-
-    base_headroom = planning_threshold - base_peak
-    scenario_headroom = planning_threshold - scenario_peak
-
-    base_warning_intervals = int(np.sum(base_forecast >= warning_threshold))
-    scenario_warning_intervals = int(np.sum(scenario_y >= warning_threshold))
-
-    base_breach_intervals = int(np.sum(base_forecast >= planning_threshold))
-    scenario_breach_intervals = int(np.sum(scenario_y >= planning_threshold))
-
-    base_warning_minutes = base_warning_intervals * SAMPLING_MINUTES
-    scenario_warning_minutes = scenario_warning_intervals * SAMPLING_MINUTES
-
-    base_breach_minutes = base_breach_intervals * SAMPLING_MINUTES
-    scenario_breach_minutes = scenario_breach_intervals * SAMPLING_MINUTES
-
-    base_first_warning = (
-        scenario_time_index[np.where(base_forecast >= warning_threshold)[0][0]]
-        if base_warning_intervals > 0 else None
-    )
-    scenario_first_warning = (
-        scenario_time_index[np.where(scenario_y >= warning_threshold)[0][0]]
-        if scenario_warning_intervals > 0 else None
-    )
-
-    base_first_breach = (
-        scenario_time_index[np.where(base_forecast >= planning_threshold)[0][0]]
-        if base_breach_intervals > 0 else None
-    )
-    scenario_first_breach = (
-        scenario_time_index[np.where(scenario_y >= planning_threshold)[0][0]]
-        if scenario_breach_intervals > 0 else None
-    )
-
-    base_energy_kwh = float(np.sum(base_forecast) * SAMPLING_MINUTES / 60.0)
-    scenario_energy_kwh = float(np.sum(scenario_y) * SAMPLING_MINUTES / 60.0)
-
-    peak_delta = scenario_peak - base_peak
-    headroom_delta = scenario_headroom - base_headroom
-    energy_delta = scenario_energy_kwh - base_energy_kwh
-
-    # ------------------------------------------------------------
-    # Outcome strip
-    # ------------------------------------------------------------
-    # Four KPI cards are rendered in the consolidated navy results section
-    # immediately after the forecast comparison chart.
-
-    # ------------------------------------------------------------
-    # Decision-focused capacity and headroom visualisations
-    # ------------------------------------------------------------
-    # Baseline and scenario are derived from the same forecast window.
-    # These are application planning values, not verified connection limits.
-    base_headroom_series = planning_threshold - base_forecast
-    scenario_headroom_series = planning_threshold - scenario_y
-    warning_headroom = max(0.0, planning_threshold - warning_threshold)
-    baseline_peak = float(base_peak)
-    projected_peak = float(scenario_peak)
-    peak_change = projected_peak - baseline_peak
-    headroom_to_warning = warning_threshold - projected_peak
-    headroom_to_planning = planning_threshold - projected_peak
-
-    if projected_peak >= planning_threshold:
-        risk_status = "Grid capacity exceeded"
-        risk_colour = "#DC2626"
-        risk_description = (
-            f"Scenario peak is {projected_peak - planning_threshold:.1f} kW above "
-            "the grid capacity. Review the proposed charging schedule."
+        st.markdown(
+            '<div style="background:#102B50;border-radius:18px;padding:20px;'
+            'margin:14px 0 20px;box-shadow:0 8px 24px rgba(16,43,80,.12);">'
+            '<div style="color:#8EE8DE;font-size:.77rem;letter-spacing:.1em;'
+            'font-weight:800;">PLANNING IMPACT ASSESSMENT</div>'
+            '<div style="color:#FFFFFF;font-size:1.45rem;font-weight:800;'
+            'margin:5px 0 5px;">Forecast &amp; Capacity Impact</div>'
+            '<div style="color:#C7DCEF;margin-bottom:15px;">'
+            'Saved LSTM baseline versus demand adjusted for selected planning conditions</div>'
+            '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));'
+            f'gap:12px;">{_planning_cards_html}</div></div>',
+            unsafe_allow_html=True,
         )
-    elif projected_peak >= warning_threshold:
-        risk_status = "Warning: approaching grid capacity"
-        risk_colour = "#D97706"
-        risk_description = (
-            f"Scenario peak is within the warning band, with "
-            f"{headroom_to_planning:.1f} kW remaining before the grid capacity."
-        )
-    else:
-        risk_status = "Within grid capacity"
-        risk_colour = "#0F766E"
-        risk_description = (
-            f"Scenario peak remains below the warning level and leaves "
-            f"{headroom_to_planning:.1f} kW of grid headroom."
+        # ------------------------------------------------------------
+        # Main forecast impact chart
+        # ------------------------------------------------------------
+        st.markdown("#### Demand Forecast Comparison")
+
+        fig_sc = go.Figure()
+
+        fig_sc.add_trace(
+            go.Scatter(
+                x=scenario_time_index,
+                y=base_forecast,
+                name="LSTM Baseline Demand Forecast",
+                line=dict(color="#64748B", width=2.0, dash="dot"),
+            )
         )
 
-    # Presentation-only planning summary. All values come from the existing
-    # forecast and planning calculations; no forecasting logic is changed.
-    from html import escape as _planning_escape
-
-    def _planning_navy_card(label, value, detail, accent="#8EE8DE"):
-        return (
-            '<div style="background:#1D426D;border:1px solid #365C84;'
-            'border-radius:14px;padding:17px 18px;min-height:126px;">'
-            f'<div style="color:#C7DCEF;font-size:.79rem;font-weight:750;'
-            f'letter-spacing:.06em;">{_planning_escape(label)}</div>'
-            f'<div style="color:{accent};font-size:1.85rem;line-height:1.3;'
-            f'font-weight:800;margin:8px 0 4px;">{_planning_escape(value)}</div>'
-            f'<div style="color:#DFECF8;font-size:.85rem;">{_planning_escape(detail)}</div>'
-            '</div>'
+        fig_sc.add_trace(
+            go.Scatter(
+                x=scenario_time_index,
+                y=scenario_y,
+                name="Planning-Based Demand Forecast",
+                line=dict(color="#2563EB", width=2.8),
+                fill="tonexty",
+                fillcolor="rgba(37,99,235,0.06)",
+            )
         )
 
-    _planning_peak_pct = 100.0 * peak_change / baseline_peak if baseline_peak > 1e-9 else None
-    _planning_peak_detail = (
-        f"{peak_change:+.1f} kW ({_planning_peak_pct:+.1f}%) vs baseline"
-        if _planning_peak_pct is not None else f"{peak_change:+.1f} kW vs baseline"
-    )
-    _planning_util_pct = 100.0 * projected_peak / planning_threshold
-    _planning_cards = [
-        ("LSTM BASELINE PEAK", f"{baseline_peak:.2f} kW", "Without planning adjustments", "#FFFFFF"),
-        ("PLANNING-BASED PEAK", f"{projected_peak:.2f} kW", _planning_peak_detail, "#8EE8DE"),
-        ("REMAINING HEADROOM", f"{headroom_to_planning:.2f} kW", "Capacity minus planning-based peak", "#FFFFFF"),
-        ("CAPACITY UTILISATION", f"{_planning_util_pct:.1f}%", f"Of {planning_threshold:.1f} kW configured limit", "#8EE8DE"),
-    ]
-    _planning_cards_html = ''.join(
-        _planning_navy_card(label, value, detail, accent)
-        for label, value, detail, accent in _planning_cards
-    )
-    st.markdown(
-        '<div style="background:#102B50;border-radius:18px;padding:20px;'
-        'margin:14px 0 20px;box-shadow:0 8px 24px rgba(16,43,80,.12);">'
-        '<div style="color:#8EE8DE;font-size:.77rem;letter-spacing:.1em;'
-        'font-weight:800;">PLANNING IMPACT ASSESSMENT</div>'
-        '<div style="color:#FFFFFF;font-size:1.45rem;font-weight:800;'
-        'margin:5px 0 5px;">Forecast &amp; Capacity Impact</div>'
-        '<div style="color:#C7DCEF;margin-bottom:15px;">'
-        'Saved LSTM baseline versus demand adjusted for selected planning conditions</div>'
-        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));'
-        f'gap:12px;">{_planning_cards_html}</div></div>',
-        unsafe_allow_html=True,
-    )
-    # ------------------------------------------------------------
-    # Main forecast impact chart
-    # ------------------------------------------------------------
-    st.markdown("#### Demand Forecast Comparison")
+        if stress_enabled and np.any(stress_mask):
+            stress_times = scenario_time_index[stress_mask]
+            fig_sc.add_vrect(
+                x0=stress_times[0],
+                x1=stress_times[-1],
+                fillcolor="rgba(245,158,11,0.10)",
+                line_width=0,
+                annotation_text="Temporary surge",
+                annotation_position="top left",
+            )
 
-    fig_sc = go.Figure()
-
-    fig_sc.add_trace(
-        go.Scatter(
-            x=scenario_time_index,
-            y=base_forecast,
-            name="LSTM Baseline Demand Forecast",
-            line=dict(color="#64748B", width=2.0, dash="dot"),
+        fig_sc.add_hline(
+            y=planning_threshold,
+            line_dash="dash",
+            line_color="#EF4444",
+            annotation_text="Grid Capacity Threshold",
+            annotation_position="top left",
         )
-    )
-
-    fig_sc.add_trace(
-        go.Scatter(
-            x=scenario_time_index,
-            y=scenario_y,
-            name="Planning-Based Demand Forecast",
-            line=dict(color="#2563EB", width=2.8),
-            fill="tonexty",
-            fillcolor="rgba(37,99,235,0.06)",
-        )
-    )
-
-    if stress_enabled and np.any(stress_mask):
-        stress_times = scenario_time_index[stress_mask]
-        fig_sc.add_vrect(
-            x0=stress_times[0],
-            x1=stress_times[-1],
-            fillcolor="rgba(245,158,11,0.10)",
-            line_width=0,
-            annotation_text="Temporary surge",
+        fig_sc.add_hline(
+            y=warning_threshold,
+            line_dash="dash",
+            line_color="#F59E0B",
+            annotation_text="Warning Threshold",
             annotation_position="top left",
         )
 
-    fig_sc.add_hline(
-        y=planning_threshold,
-        line_dash="dash",
-        line_color="#EF4444",
-        annotation_text="Grid Capacity Threshold",
-        annotation_position="top left",
-    )
-    fig_sc.add_hline(
-        y=warning_threshold,
-        line_dash="dash",
-        line_color="#F59E0B",
-        annotation_text="Warning Threshold",
-        annotation_position="top left",
-    )
-
-    demand_upper = float(max(np.max(base_forecast), np.max(scenario_y), planning_threshold))
-    demand_upper = demand_upper + max(1.0, 0.08 * max(demand_upper, 1.0))
-    fig_sc.add_hrect(
-        y0=0, y1=warning_threshold,
-        fillcolor="rgba(15,159,143,0.05)", line_width=0, layer="below",
-    )
-    fig_sc.add_hrect(
-        y0=warning_threshold, y1=planning_threshold,
-        fillcolor="rgba(245,158,11,0.08)", line_width=0, layer="below",
-    )
-    fig_sc.add_hrect(
-        y0=planning_threshold, y1=demand_upper,
-        fillcolor="rgba(220,38,38,0.06)", line_width=0, layer="below",
-    )
-
-    fig_sc.update_layout(
-        template="plotly_white",
-        height=460,
-        paper_bgcolor="#F4F8FC",
-        plot_bgcolor="#F4F8FC",
-        font=dict(color="#334155", size=12),
-        margin=dict(t=62, b=55, l=55, r=35),
-        legend=dict(orientation="h", y=1.12),
-        xaxis=dict(
-            title="Forecast Time",
-            gridcolor="rgba(148,163,184,0.20)",
-            zeroline=False,
-        ),
-        yaxis=dict(
-            title="Demand (kW)",
-            range=[0, demand_upper],
-            gridcolor="rgba(148,163,184,0.20)",
-            zeroline=False,
-        ),
-        hovermode="x unified",
-    )
-    _optivolt_plotly_chart(fig_sc, use_container_width=True)
-
-
-    _risk_color = "#FCA5A5" if scenario_peak >= planning_threshold else ("#FCD34D" if scenario_peak >= warning_threshold else "#8EE8DE")
-    _risk_bg = "#622D3B" if scenario_peak >= planning_threshold else ("#5B472B" if scenario_peak >= warning_threshold else "#174C52")
-    _risk_icon = "⚠" if scenario_peak >= warning_threshold else "✓"
-    st.markdown(
-        '<div style="background:#102B50;border-radius:16px;padding:10px;'
-        'margin:12px 0 18px;">'
-        f'<div style="background:{_risk_bg};border-left:5px solid {_risk_color};'
-        'border-radius:11px;padding:15px 18px;">'
-        f'<div style="color:{_risk_color};font-size:1.1rem;font-weight:800;">'
-        f'{_risk_icon} Capacity assessment: {_planning_escape(risk_status)}</div>'
-        f'<div style="color:#FFFFFF;margin-top:6px;line-height:1.55;">'
-        f'{_planning_escape(risk_description)}</div></div></div>',
-        unsafe_allow_html=True,
-    )
-
-
-    st.markdown("#### Grid Capacity Utilisation")
-
-    # Horizontal bars express percentage utilisation while the hover also
-    # preserves absolute kW values. Values above 100% remain visible.
-    util_baseline = 100.0 * baseline_peak / planning_threshold
-    util_scenario = 100.0 * projected_peak / planning_threshold
-    warning_pct = 100.0 * warning_threshold / planning_threshold
-    axis_max = max(110.0, util_baseline * 1.12, util_scenario * 1.12)
-
-    fig_util = go.Figure()
-    # Muted risk bands avoid an empty white canvas; their boundaries are
-    # calculated from the selected depot's actual warning/grid capacitys.
-    fig_util.add_vrect(
-        x0=0, x1=warning_pct,
-        fillcolor="rgba(15, 159, 143, 0.08)", line_width=0, layer="below",
-    )
-    fig_util.add_vrect(
-        x0=warning_pct, x1=100,
-        fillcolor="rgba(245, 158, 11, 0.13)", line_width=0,
-        layer="below",
-    )
-    if axis_max > 100:
-        fig_util.add_vrect(
-            x0=100, x1=axis_max,
-            fillcolor="rgba(220,38,38,0.08)", line_width=0,
-            layer="below",
+        demand_upper = float(max(np.max(base_forecast), np.max(scenario_y), planning_threshold))
+        demand_upper = demand_upper + max(1.0, 0.08 * max(demand_upper, 1.0))
+        fig_sc.add_hrect(
+            y0=0, y1=warning_threshold,
+            fillcolor="rgba(15,159,143,0.05)", line_width=0, layer="below",
         )
-    fig_util.add_trace(go.Bar(
-        y=["Baseline Peak Demand Forecast", "Adjusted Demand Peak Demand Forecast"],
-        x=[util_baseline, util_scenario],
-        orientation="h",
-        marker_color=["#2563EB", "#0F766E"],
-        customdata=np.array([[baseline_peak], [projected_peak]]),
-        text=[f"{baseline_peak:.2f} kW · {util_baseline:.1f}%", f"{projected_peak:.2f} kW · {util_scenario:.1f}%"],
-        textposition="outside", cliponaxis=False,
-        hovertemplate=(
-            "%{y}: %{customdata[0]:.2f} kW peak"
-            "<br>Grid capacity used: %{x:.1f}%<extra></extra>"
-        ),
-        showlegend=False,
-    ))
-    fig_util.add_vline(
-        x=warning_pct, line_dash="dash", line_color="#D97706",
-        annotation_text=f"Warning ({warning_pct:.0f}%)",
-        annotation_position="top left",
-    )
-    fig_util.add_vline(
-        x=100, line_dash="dash", line_color="#DC2626",
-        annotation_text="Grid capacity (100%)",
-        annotation_position="top right",
-    )
-    fig_util.update_layout(
-        template="plotly_white", height=285,
-        paper_bgcolor="#F4F8FC", plot_bgcolor="#F4F8FC",
-        font=dict(color="#334155", size=12),
-        margin=dict(t=57, b=45, l=26, r=115),
-        xaxis=dict(
-            title="Grid capacity used (%)", range=[0, axis_max],
-            ticksuffix="%", zeroline=False,
-            gridcolor="rgba(148,163,184,0.20)",
-        ),
-        yaxis=dict(title=None, autorange="reversed", showgrid=False),
-        bargap=0.56,
-    )
-    _optivolt_plotly_chart(fig_util, use_container_width=True)
-    # ------------------------------------------------------------
-    # Time-varying risk: headroom is capacity minus demand.
-    # ------------------------------------------------------------
-    st.markdown("#### Remaining Grid Headroom")
-    _base_min = float(np.min(base_headroom_series))
-    _growth_min = float(np.min(scenario_headroom_series))
-    _optivolt_info_cards([("GRID CAPACITY", f"{float(st.session_state['grid_limit']):.1f} kW"),
-        ("BASELINE MIN HEADROOM", f"{_base_min:+.2f} kW"),
-        ("GROWTH MIN HEADROOM", f"{_growth_min:+.2f} kW"),
-        ("HEADROOM STATUS", "Capacity risk" if min(_base_min, _growth_min) < 0 else "Within limit")])
-    if min(_base_min, _growth_min) < 0:
-        _optivolt_result_card("Grid capacity may be exceeded",
-            "Negative headroom means forecast demand is above the configured grid limit.",
-            "Check the connection limit, investigate managed charging and validate the forecast before committing to fleet expansion.", "critical")
-    else:
-        _optivolt_result_card("Positive forecast headroom",
-            "Forecast demand remains below the configured grid limit in these scenarios.",
-            "Continue monitoring demand and refresh the forecast when depot operations change.")
-    st.caption("Remaining headroom is grid capacity minus forecast demand; zero is the capacity boundary.")
-    fig_headroom = go.Figure()
-    min_headroom = float(min(
-        np.min(base_headroom_series), np.min(scenario_headroom_series), 0.0
-    ))
-    max_headroom = float(max(
-        np.max(base_headroom_series), np.max(scenario_headroom_series),
-        warning_headroom, 1.0,
-    ))
-    spread = max(max_headroom - min_headroom, 1.0)
-    lower_bound = min_headroom - max(0.4, 0.05 * spread)
-    upper_bound = max_headroom + max(0.6, 0.08 * spread)
-    xmin, xmax = scenario_time_index[0], scenario_time_index[-1]
-
-    # Risk bands are tied to the actual threshold arithmetic.
-    fig_headroom.add_hrect(
-        y0=warning_headroom, y1=upper_bound,
-        fillcolor="rgba(15,159,143,0.07)", line_width=0, layer="below",
-    )
-    if warning_headroom > 0:
-        fig_headroom.add_hrect(
-            y0=0, y1=warning_headroom,
-            fillcolor="rgba(245,158,11,0.12)", line_width=0, layer="below",
+        fig_sc.add_hrect(
+            y0=warning_threshold, y1=planning_threshold,
+            fillcolor="rgba(245,158,11,0.08)", line_width=0, layer="below",
         )
-    if lower_bound < 0:
-        fig_headroom.add_hrect(
-            y0=lower_bound, y1=0,
-            fillcolor="rgba(220,38,38,0.09)", line_width=0, layer="below",
+        fig_sc.add_hrect(
+            y0=planning_threshold, y1=demand_upper,
+            fillcolor="rgba(220,38,38,0.06)", line_width=0, layer="below",
         )
 
-    # Draw the solid scenario first. The baseline dotted line must be on TOP:
-    # otherwise identical forecasts hide the dotted baseline completely.
-    fig_headroom.add_trace(go.Scatter(
-        x=scenario_time_index, y=scenario_headroom_series,
-        name="Adjusted Demand Remaining Headroom",
-        mode="lines", line=dict(color="#0F9F8F", width=3),
-        hovertemplate="Planning-based remaining headroom: %{y:.2f} kW<extra></extra>",
-        legendrank=2,
-    ))
-    fig_headroom.add_trace(go.Scatter(
-        x=scenario_time_index, y=base_headroom_series,
-        name="LSTM Baseline Remaining Headroom",
-        mode="lines+markers", line=dict(color="#334155", width=3.5, dash="dot"),
-        marker=dict(size=5, color="#334155"),
-        hovertemplate="LSTM baseline remaining headroom: %{y:.2f} kW<extra></extra>",
-        legendrank=1,
-    ))
-    if np.allclose(base_headroom_series, scenario_headroom_series, rtol=0, atol=0.02):
-        st.caption("The forecasts overlap at this scale; use the markers or hover to distinguish them.")
-    fig_headroom.add_hline(
-        y=warning_headroom, line_dash="dash", line_color="#D97706",
-        annotation_text=f"Warning begins ({warning_headroom:.1f} kW left)",
-        annotation_position="top left",
-    )
-    fig_headroom.add_hline(
-        y=0, line_dash="dash", line_color="#DC2626",
-        annotation_text="Grid capacity reached (0 kW)",
-        annotation_position="bottom left",
-    )
-    fig_headroom.update_layout(
-        template="plotly_white", height=370,
-        paper_bgcolor="#F4F8FC", plot_bgcolor="#F4F8FC",
-        font=dict(color="#334155", size=12),
-        margin=dict(t=60, b=55, l=55, r=35),
-        legend=dict(orientation="h", y=1.16, x=0),
-        xaxis=dict(
-            title="Forecast time", range=[xmin, xmax],
-            gridcolor="rgba(148,163,184,0.20)", zeroline=False,
-        ),
-        yaxis=dict(
-            title="Remaining grid headroom (kW)", range=[lower_bound, upper_bound],
-            gridcolor="rgba(148,163,184,0.20)", zeroline=False,
-        ),
-        hovermode="x unified",
-    )
-    _optivolt_plotly_chart(fig_headroom, use_container_width=True)
-
-    minimum_scenario_headroom = float(np.min(scenario_headroom_series))
-    if minimum_scenario_headroom < 0:
-        st.caption(f"**Headroom assessment:** Scenario demand exceeds the grid capacity by up to {abs(minimum_scenario_headroom):.1f} kW.")
-    elif minimum_scenario_headroom <= warning_headroom:
-        st.caption(f"**Headroom assessment:** The scenario enters the warning zone; minimum remaining headroom is {minimum_scenario_headroom:.1f} kW.")
-    else:
-        st.caption(f"**Headroom assessment:** Minimum remaining headroom is {minimum_scenario_headroom:.1f} kW; no warning is projected.")
-
-    # ------------------------------------------------------------
-    # Timing and operational interpretation
-    # ------------------------------------------------------------
-    st.markdown("#### Risk Assessment — Warning and Breach Timing")
-    st.caption(f"Warning level: {warning_threshold:.1f} kW · Grid capacity: {planning_threshold:.1f} kW. Times refer to the selected forecast window.")
-
-    timing_rows = [
-        (
-            "First warning",
-            base_first_warning.strftime("%d %b %Y %H:%M") if base_first_warning is not None else "No warning projected",
-            scenario_first_warning.strftime("%d %b %Y %H:%M") if scenario_first_warning is not None else "No warning projected",
-        ),
-        (
-            "First breach",
-            base_first_breach.strftime("%d %b %Y %H:%M") if base_first_breach is not None else "No breach projected",
-            scenario_first_breach.strftime("%d %b %Y %H:%M") if scenario_first_breach is not None else "No breach projected",
-        ),
-    ]
-
-    timing_rows.extend([
-        ("Total warning exposure",
-         f"{base_warning_minutes} min", f"{scenario_warning_minutes} min"),
-        ("Total breach exposure",
-         f"{base_breach_minutes} min", f"{scenario_breach_minutes} min"),
-        ("Minimum remaining headroom",
-         f"{base_headroom:.1f} kW", f"{scenario_headroom:.1f} kW"),
-    ])
-    # Compact, readable navy cards retain both baseline and adjusted timings.
-    _risk_cards_html = []
-    for _measure, _base_value, _adjusted_value in timing_rows:
-        _risk_cards_html.append(
-            '<div style="background:#1D426D;border:1px solid #365C84;'
-            'border-radius:12px;padding:15px;min-width:0;">'
-            f'<div style="color:#8EE8DE;font-weight:800;font-size:.86rem;margin-bottom:11px;">{_planning_escape(_measure)}</div>'
-            '<div style="color:#C7DCEF;font-size:.75rem;">LSTM BASELINE</div>'
-            f'<div style="color:#FFFFFF;font-weight:700;margin:3px 0 12px;">{_planning_escape(_base_value)}</div>'
-            '<div style="color:#C7DCEF;font-size:.75rem;">PLANNING-BASED</div>'
-            f'<div style="color:#FFFFFF;font-weight:800;margin-top:3px;">{_planning_escape(_adjusted_value)}</div>'
-            '</div>'
+        fig_sc.update_layout(
+            template="plotly_white",
+            height=460,
+            paper_bgcolor="#F4F8FC",
+            plot_bgcolor="#F4F8FC",
+            font=dict(color="#334155", size=12),
+            margin=dict(t=62, b=55, l=55, r=35),
+            legend=dict(orientation="h", y=1.12),
+            xaxis=dict(
+                title="Forecast Time",
+                gridcolor="rgba(148,163,184,0.20)",
+                zeroline=False,
+            ),
+            yaxis=dict(
+                title="Demand (kW)",
+                range=[0, demand_upper],
+                gridcolor="rgba(148,163,184,0.20)",
+                zeroline=False,
+            ),
+            hovermode="x unified",
         )
-    st.markdown(
-        '<div style="background:#102B50;border-radius:16px;padding:16px;'
-        'display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));'
-        'gap:12px;margin:12px 0 20px;">' + ''.join(_risk_cards_html) + '</div>',
-        unsafe_allow_html=True,
-    )
+        _optivolt_plotly_chart(fig_sc, use_container_width=True)
 
-    st.markdown("#### Operational Recommendation")
 
-    recommendation_parts = []
-
-    if scenario_breach_minutes > 0:
-        recommendation_parts.append(
-            "Increase managed charging, shift a larger flexible share, lower the peak load cap, "
-            "or review additional grid headroom."
-        )
-    elif scenario_warning_minutes > 0:
-        recommendation_parts.append(
-            "Review coincident charging during the warning window and prioritise flexible charging "
-            "outside the forecast peak."
-        )
-    else:
-        recommendation_parts.append(
-            "No immediate capacity intervention is indicated under this scenario."
-        )
-
-    if scenario_peak < base_peak:
-        recommendation_parts.append(
-            f"The scenario reduces predicted peak demand by {base_peak - scenario_peak:.1f} kW."
-        )
-    elif scenario_peak > base_peak:
-        recommendation_parts.append(
-            f"The scenario increases predicted peak demand by {scenario_peak - base_peak:.1f} kW."
-        )
-
-    if scenario_breach_minutes < base_breach_minutes:
-        recommendation_parts.append(
-            f"Forecast breach exposure is reduced by {base_breach_minutes - scenario_breach_minutes} minutes."
-        )
-
-    if shifted_beyond_horizon_kwh > 0:
-        recommendation_parts.append(
-            f"Approximately {shifted_beyond_horizon_kwh:.2f} kWh of flexible charging is shifted beyond "
-            "the selected forecast window."
-        )
-
-    if cap_enabled and capped_energy_kwh > 0:
-        recommendation_parts.append(
-            f"The selected load cap suppresses approximately {capped_energy_kwh:.2f} kWh within this forecast window; "
-            "that energy would need to be delivered later or elsewhere operationally."
-        )
-
-    _planning_energy_pct = (100.0 * energy_delta / base_energy_kwh) if base_energy_kwh > 1e-9 else None
-    _planning_energy_detail = (
-        f"{_planning_energy_pct:+.1f}% vs baseline forecast"
-        if _planning_energy_pct is not None else "Difference in forecast-window energy"
-    )
-    _planning_extra_cards = [
-        ("ENERGY IMPACT", f"{energy_delta:+.1f} kWh", _planning_energy_detail, "#8EE8DE"),
-        ("CAPACITY BREACH EXPOSURE", f"{scenario_breach_minutes} min", "Across the selected forecast window", "#FFFFFF"),
-    ]
-    st.markdown(
-        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));'
-        'gap:12px;margin:10px 0 15px;">'
-        + ''.join(_planning_navy_card(*card) for card in _planning_extra_cards)
-        + '</div>',
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        '<div style="background:#102B50;border-radius:16px;padding:20px;'
-        'margin:10px 0 18px;">'
-        '<div style="color:#8EE8DE;font-weight:800;font-size:1.1rem;'
-        'margin-bottom:8px;">Operational Recommendation</div>'
-        f'<div style="color:#FFFFFF;line-height:1.6;">'
-        f'{_planning_escape(" ".join(recommendation_parts))}</div></div>',
-        unsafe_allow_html=True,
-    )
-
-    with st.expander("Detailed Forecast Comparison & Methodology", expanded=False):
-        st.markdown("**How planning-based forecasting works**")
-        st.write(
-            "The LSTM baseline demand forecast is used to assess the effect of selected "
-            "charging and depot operating conditions. Adjust the inputs to compare peak demand, "
-            "capacity utilisation and remaining headroom."
-        )
-        st.markdown("**Applied planning assumptions**")
-        mechanics_rows = [
-            ("Fleet / charging growth", f"{scenario_growth_pct}%"),
-            ("Additional fixed site load", f"{scenario_fixed_load_kw:.1f} kW"),
-            ("Peak charging coincidence uplift", f"{scenario_coincidence_pct}%"),
-            ("Managed charging reduction", f"{scenario_reduction_pct}%"),
-            ("Flexible charging available", f"{flexible_pct}%"),
-            ("Charging time shift", "None" if shift_hours == 0 else f"{shift_hours:g} hours"),
-            ("Temporary charging surge", (
-                f"{stress_uplift_pct}% uplift from +{stress_start_hour:g}h for {stress_duration_hours:g}h"
-                if stress_enabled and stress_uplift_pct > 0 else "Not applied"
-            )),
-            ("Peak-period load cap", f"{scenario_load_cap_kw:.1f} kW" if cap_enabled else "Not applied"),
-        ]
-        _assumption_cards = ''.join(
-            '<div style="background:#1D426D;border:1px solid #365C84;'
-            'border-radius:11px;padding:12px;">'
-            f'<div style="color:#C7DCEF;font-size:.8rem;">{_planning_escape(label)}</div>'
-            f'<div style="color:#FFFFFF;font-weight:800;font-size:1.05rem;margin-top:6px;">{_planning_escape(value)}</div>'
-            '</div>' for label, value in mechanics_rows
-        )
+        _risk_color = "#FCA5A5" if scenario_peak >= planning_threshold else ("#FCD34D" if scenario_peak >= warning_threshold else "#8EE8DE")
+        _risk_bg = "#622D3B" if scenario_peak >= planning_threshold else ("#5B472B" if scenario_peak >= warning_threshold else "#174C52")
+        _risk_icon = "⚠" if scenario_peak >= warning_threshold else "✓"
         st.markdown(
-            '<div style="background:#102B50;border-radius:15px;padding:14px;'
-            'display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));'
-            'gap:10px;margin:10px 0 16px;">' + _assumption_cards + '</div>',
+            '<div style="background:#102B50;border-radius:16px;padding:10px;'
+            'margin:12px 0 18px;">'
+            f'<div style="background:{_risk_bg};border-left:5px solid {_risk_color};'
+            'border-radius:11px;padding:15px 18px;">'
+            f'<div style="color:{_risk_color};font-size:1.1rem;font-weight:800;">'
+            f'{_risk_icon} Capacity assessment: {_planning_escape(risk_status)}</div>'
+            f'<div style="color:#FFFFFF;margin-top:6px;line-height:1.55;">'
+            f'{_planning_escape(risk_description)}</div></div></div>',
             unsafe_allow_html=True,
         )
-        st.markdown("**Detailed forecast comparison**")
+
+
+        st.markdown("#### Grid Capacity Utilisation")
+
+        # Horizontal bars express percentage utilisation while the hover also
+        # preserves absolute kW values. Values above 100% remain visible.
+        util_baseline = 100.0 * baseline_peak / planning_threshold
+        util_scenario = 100.0 * projected_peak / planning_threshold
+        warning_pct = 100.0 * warning_threshold / planning_threshold
+        axis_max = max(110.0, util_baseline * 1.12, util_scenario * 1.12)
+
+        fig_util = go.Figure()
+        # Muted risk bands avoid an empty white canvas; their boundaries are
+        # calculated from the selected depot's actual warning/grid capacitys.
+        fig_util.add_vrect(
+            x0=0, x1=warning_pct,
+            fillcolor="rgba(15, 159, 143, 0.08)", line_width=0, layer="below",
+        )
+        fig_util.add_vrect(
+            x0=warning_pct, x1=100,
+            fillcolor="rgba(245, 158, 11, 0.13)", line_width=0,
+            layer="below",
+        )
+        if axis_max > 100:
+            fig_util.add_vrect(
+                x0=100, x1=axis_max,
+                fillcolor="rgba(220,38,38,0.08)", line_width=0,
+                layer="below",
+            )
+        fig_util.add_trace(go.Bar(
+            y=["Baseline Peak Demand Forecast", "Adjusted Demand Peak Demand Forecast"],
+            x=[util_baseline, util_scenario],
+            orientation="h",
+            marker_color=["#2563EB", "#0F766E"],
+            customdata=np.array([[baseline_peak], [projected_peak]]),
+            text=[f"{baseline_peak:.2f} kW · {util_baseline:.1f}%", f"{projected_peak:.2f} kW · {util_scenario:.1f}%"],
+            textposition="outside", cliponaxis=False,
+            hovertemplate=(
+                "%{y}: %{customdata[0]:.2f} kW peak"
+                "<br>Grid capacity used: %{x:.1f}%<extra></extra>"
+            ),
+            showlegend=False,
+        ))
+        fig_util.add_vline(
+            x=warning_pct, line_dash="dash", line_color="#D97706",
+            annotation_text=f"Warning ({warning_pct:.0f}%)",
+            annotation_position="top left",
+        )
+        fig_util.add_vline(
+            x=100, line_dash="dash", line_color="#DC2626",
+            annotation_text="Grid capacity (100%)",
+            annotation_position="top right",
+        )
+        fig_util.update_layout(
+            template="plotly_white", height=285,
+            paper_bgcolor="#F4F8FC", plot_bgcolor="#F4F8FC",
+            font=dict(color="#334155", size=12),
+            margin=dict(t=57, b=45, l=26, r=115),
+            xaxis=dict(
+                title="Grid capacity used (%)", range=[0, axis_max],
+                ticksuffix="%", zeroline=False,
+                gridcolor="rgba(148,163,184,0.20)",
+            ),
+            yaxis=dict(title=None, autorange="reversed", showgrid=False),
+            bargap=0.56,
+        )
+        _optivolt_plotly_chart(fig_util, use_container_width=True)
         # ------------------------------------------------------------
-        # Baseline vs scenario comparison table
+        # Time-varying risk: headroom is capacity minus demand.
         # ------------------------------------------------------------
-        scenario_comparison = pd.DataFrame(
-            [
-                ("Peak demand (kW)", base_peak, scenario_peak, scenario_peak - base_peak),
-                ("Remaining headroom (kW)", base_headroom, scenario_headroom, scenario_headroom - base_headroom),
-                ("Energy in forecast window (kWh)", base_energy_kwh, scenario_energy_kwh, energy_delta),
-                ("Warning exposure (minutes)", base_warning_minutes, scenario_warning_minutes, scenario_warning_minutes - base_warning_minutes),
-                ("Breach exposure (minutes)", base_breach_minutes, scenario_breach_minutes, scenario_breach_minutes - base_breach_minutes),
-            ],
-            columns=["Measure", "Baseline Demand Forecast", "Adjusted Demand Forecast", "Difference"],
+        st.markdown("#### Remaining Grid Headroom")
+        _base_min = float(np.min(base_headroom_series))
+        _growth_min = float(np.min(scenario_headroom_series))
+        _optivolt_info_cards([("GRID CAPACITY", f"{float(st.session_state['grid_limit']):.1f} kW"),
+            ("BASELINE MIN HEADROOM", f"{_base_min:+.2f} kW"),
+            ("GROWTH MIN HEADROOM", f"{_growth_min:+.2f} kW"),
+            ("HEADROOM STATUS", "Capacity risk" if min(_base_min, _growth_min) < 0 else "Within limit")])
+        if min(_base_min, _growth_min) < 0:
+            _optivolt_result_card("Grid capacity may be exceeded",
+                "Negative headroom means forecast demand is above the configured grid limit.",
+                "Check the connection limit, investigate managed charging and validate the forecast before committing to fleet expansion.", "critical")
+        else:
+            _optivolt_result_card("Positive forecast headroom",
+                "Forecast demand remains below the configured grid limit in these scenarios.",
+                "Continue monitoring demand and refresh the forecast when depot operations change.")
+        st.caption("Remaining headroom is grid capacity minus forecast demand; zero is the capacity boundary.")
+        fig_headroom = go.Figure()
+        min_headroom = float(min(
+            np.min(base_headroom_series), np.min(scenario_headroom_series), 0.0
+        ))
+        max_headroom = float(max(
+            np.max(base_headroom_series), np.max(scenario_headroom_series),
+            warning_headroom, 1.0,
+        ))
+        spread = max(max_headroom - min_headroom, 1.0)
+        lower_bound = min_headroom - max(0.4, 0.05 * spread)
+        upper_bound = max_headroom + max(0.6, 0.08 * spread)
+        xmin, xmax = scenario_time_index[0], scenario_time_index[-1]
+
+        # Risk bands are tied to the actual threshold arithmetic.
+        fig_headroom.add_hrect(
+            y0=warning_headroom, y1=upper_bound,
+            fillcolor="rgba(15,159,143,0.07)", line_width=0, layer="below",
+        )
+        if warning_headroom > 0:
+            fig_headroom.add_hrect(
+                y0=0, y1=warning_headroom,
+                fillcolor="rgba(245,158,11,0.12)", line_width=0, layer="below",
+            )
+        if lower_bound < 0:
+            fig_headroom.add_hrect(
+                y0=lower_bound, y1=0,
+                fillcolor="rgba(220,38,38,0.09)", line_width=0, layer="below",
+            )
+
+        # Draw the solid scenario first. The baseline dotted line must be on TOP:
+        # otherwise identical forecasts hide the dotted baseline completely.
+        fig_headroom.add_trace(go.Scatter(
+            x=scenario_time_index, y=scenario_headroom_series,
+            name="Adjusted Demand Remaining Headroom",
+            mode="lines", line=dict(color="#0F9F8F", width=3),
+            hovertemplate="Planning-based remaining headroom: %{y:.2f} kW<extra></extra>",
+            legendrank=2,
+        ))
+        fig_headroom.add_trace(go.Scatter(
+            x=scenario_time_index, y=base_headroom_series,
+            name="LSTM Baseline Remaining Headroom",
+            mode="lines+markers", line=dict(color="#334155", width=3.5, dash="dot"),
+            marker=dict(size=5, color="#334155"),
+            hovertemplate="LSTM baseline remaining headroom: %{y:.2f} kW<extra></extra>",
+            legendrank=1,
+        ))
+        if np.allclose(base_headroom_series, scenario_headroom_series, rtol=0, atol=0.02):
+            st.caption("The forecasts overlap at this scale; use the markers or hover to distinguish them.")
+        fig_headroom.add_hline(
+            y=warning_headroom, line_dash="dash", line_color="#D97706",
+            annotation_text=f"Warning begins ({warning_headroom:.1f} kW left)",
+            annotation_position="top left",
+        )
+        fig_headroom.add_hline(
+            y=0, line_dash="dash", line_color="#DC2626",
+            annotation_text="Grid capacity reached (0 kW)",
+            annotation_position="bottom left",
+        )
+        fig_headroom.update_layout(
+            template="plotly_white", height=370,
+            paper_bgcolor="#F4F8FC", plot_bgcolor="#F4F8FC",
+            font=dict(color="#334155", size=12),
+            margin=dict(t=60, b=55, l=55, r=35),
+            legend=dict(orientation="h", y=1.16, x=0),
+            xaxis=dict(
+                title="Forecast time", range=[xmin, xmax],
+                gridcolor="rgba(148,163,184,0.20)", zeroline=False,
+            ),
+            yaxis=dict(
+                title="Remaining grid headroom (kW)", range=[lower_bound, upper_bound],
+                gridcolor="rgba(148,163,184,0.20)", zeroline=False,
+            ),
+            hovermode="x unified",
+        )
+        _optivolt_plotly_chart(fig_headroom, use_container_width=True)
+
+        minimum_scenario_headroom = float(np.min(scenario_headroom_series))
+        if minimum_scenario_headroom < 0:
+            st.caption(f"**Headroom assessment:** Scenario demand exceeds the grid capacity by up to {abs(minimum_scenario_headroom):.1f} kW.")
+        elif minimum_scenario_headroom <= warning_headroom:
+            st.caption(f"**Headroom assessment:** The scenario enters the warning zone; minimum remaining headroom is {minimum_scenario_headroom:.1f} kW.")
+        else:
+            st.caption(f"**Headroom assessment:** Minimum remaining headroom is {minimum_scenario_headroom:.1f} kW; no warning is projected.")
+
+        # ------------------------------------------------------------
+        # Timing and operational interpretation
+        # ------------------------------------------------------------
+        st.markdown("#### Risk Assessment — Warning and Breach Timing")
+        st.caption(f"Warning level: {warning_threshold:.1f} kW · Grid capacity: {planning_threshold:.1f} kW. Times refer to the selected forecast window.")
+
+        timing_rows = [
+            (
+                "First warning",
+                base_first_warning.strftime("%d %b %Y %H:%M") if base_first_warning is not None else "No warning projected",
+                scenario_first_warning.strftime("%d %b %Y %H:%M") if scenario_first_warning is not None else "No warning projected",
+            ),
+            (
+                "First breach",
+                base_first_breach.strftime("%d %b %Y %H:%M") if base_first_breach is not None else "No breach projected",
+                scenario_first_breach.strftime("%d %b %Y %H:%M") if scenario_first_breach is not None else "No breach projected",
+            ),
+        ]
+
+        timing_rows.extend([
+            ("Total warning exposure",
+             f"{base_warning_minutes} min", f"{scenario_warning_minutes} min"),
+            ("Total breach exposure",
+             f"{base_breach_minutes} min", f"{scenario_breach_minutes} min"),
+            ("Minimum remaining headroom",
+             f"{base_headroom:.1f} kW", f"{scenario_headroom:.1f} kW"),
+        ])
+        # Compact, readable navy cards retain both baseline and adjusted timings.
+        _risk_cards_html = []
+        for _measure, _base_value, _adjusted_value in timing_rows:
+            _risk_cards_html.append(
+                '<div style="background:#1D426D;border:1px solid #365C84;'
+                'border-radius:12px;padding:15px;min-width:0;">'
+                f'<div style="color:#8EE8DE;font-weight:800;font-size:.86rem;margin-bottom:11px;">{_planning_escape(_measure)}</div>'
+                '<div style="color:#C7DCEF;font-size:.75rem;">LSTM BASELINE</div>'
+                f'<div style="color:#FFFFFF;font-weight:700;margin:3px 0 12px;">{_planning_escape(_base_value)}</div>'
+                '<div style="color:#C7DCEF;font-size:.75rem;">PLANNING-BASED</div>'
+                f'<div style="color:#FFFFFF;font-weight:800;margin-top:3px;">{_planning_escape(_adjusted_value)}</div>'
+                '</div>'
+            )
+        st.markdown(
+            '<div style="background:#102B50;border-radius:16px;padding:16px;'
+            'display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));'
+            'gap:12px;margin:12px 0 20px;">' + ''.join(_risk_cards_html) + '</div>',
+            unsafe_allow_html=True,
         )
 
-        st.markdown("#### LSTM Baseline Demand Forecast vs Planning-Based Demand Forecast")
-        st.caption(f"Baseline peak: {base_peak_time:%d %b %Y, %H:%M} · Planning-based peak: {planning_peak_time:%d %b %Y, %H:%M}")
+        st.markdown("#### Operational Recommendation")
 
-        def _scenario_difference_class(measure, difference):
-            measure_text = str(measure).lower()
-            diff = float(difference)
+        recommendation_parts = []
 
-            if abs(diff) < 1e-9:
-                return "scenario-neutral"
-
-            if "headroom" in measure_text:
-                return "scenario-positive" if diff > 0 else "scenario-negative"
-
-            # Lower peak / warning / breach is positive.
-            if any(token in measure_text for token in ["peak", "warning", "breach"]):
-                return "scenario-positive" if diff < 0 else "scenario-negative"
-
-            return "scenario-neutral"
-
-        scenario_rows_html = []
-        for _, scenario_row in scenario_comparison.iterrows():
-            measure_name = str(scenario_row["Measure"])
-            baseline_value = float(scenario_row["Baseline Demand Forecast"])
-            scenario_value = float(scenario_row["Adjusted Demand Forecast"])
-            difference_value = float(scenario_row["Difference"])
-            difference_class = _scenario_difference_class(
-                measure_name,
-                difference_value,
+        if scenario_breach_minutes > 0:
+            recommendation_parts.append(
+                "Increase managed charging, shift a larger flexible share, lower the peak load cap, "
+                "or review additional grid headroom."
+            )
+        elif scenario_warning_minutes > 0:
+            recommendation_parts.append(
+                "Review coincident charging during the warning window and prioritise flexible charging "
+                "outside the forecast peak."
+            )
+        else:
+            recommendation_parts.append(
+                "No immediate capacity intervention is indicated under this scenario."
             )
 
-            scenario_rows_html.append(
-                "<tr>"
-                f'<td class="scenario-measure">{measure_name}</td>'
-                f'<td class="scenario-baseline">{baseline_value:.1f}</td>'
-                f'<td class="scenario-current">{scenario_value:.1f}</td>'
-                f'<td class="{difference_class}">{difference_value:+.1f}</td>'
-                "</tr>"
+        if scenario_peak < base_peak:
+            recommendation_parts.append(
+                f"The scenario reduces predicted peak demand by {base_peak - scenario_peak:.1f} kW."
+            )
+        elif scenario_peak > base_peak:
+            recommendation_parts.append(
+                f"The scenario increases predicted peak demand by {scenario_peak - base_peak:.1f} kW."
             )
 
-        scenario_table_html = (
-            '<div class="ov-scenario-table-wrap">'
-            '<table class="ov-scenario-table">'
-            "<thead><tr>"
-            "<th>Measure</th>"
-            "<th>LSTM Baseline Demand Forecast</th>"
-            "<th>Planning-Based Demand Forecast</th>"
-            "<th>Difference</th>"
-            "</tr></thead>"
-            "<tbody>"
-            + "".join(scenario_rows_html)
-            + "</tbody></table></div>"
+        if scenario_breach_minutes < base_breach_minutes:
+            recommendation_parts.append(
+                f"Forecast breach exposure is reduced by {base_breach_minutes - scenario_breach_minutes} minutes."
+            )
+
+        if shifted_beyond_horizon_kwh > 0:
+            recommendation_parts.append(
+                f"Approximately {shifted_beyond_horizon_kwh:.2f} kWh of flexible charging is shifted beyond "
+                "the selected forecast window."
+            )
+
+        if cap_enabled and capped_energy_kwh > 0:
+            recommendation_parts.append(
+                f"The selected load cap suppresses approximately {capped_energy_kwh:.2f} kWh within this forecast window; "
+                "that energy would need to be delivered later or elsewhere operationally."
+            )
+
+        _planning_energy_pct = (100.0 * energy_delta / base_energy_kwh) if base_energy_kwh > 1e-9 else None
+        _planning_energy_detail = (
+            f"{_planning_energy_pct:+.1f}% vs baseline forecast"
+            if _planning_energy_pct is not None else "Difference in forecast-window energy"
         )
-        st.markdown(scenario_table_html, unsafe_allow_html=True)
+        _planning_extra_cards = [
+            ("ENERGY IMPACT", f"{energy_delta:+.1f} kWh", _planning_energy_detail, "#8EE8DE"),
+            ("CAPACITY BREACH EXPOSURE", f"{scenario_breach_minutes} min", "Across the selected forecast window", "#FFFFFF"),
+        ]
+        st.markdown(
+            '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));'
+            'gap:12px;margin:10px 0 15px;">'
+            + ''.join(_planning_navy_card(*card) for card in _planning_extra_cards)
+            + '</div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            '<div style="background:#102B50;border-radius:16px;padding:20px;'
+            'margin:10px 0 18px;">'
+            '<div style="color:#8EE8DE;font-weight:800;font-size:1.1rem;'
+            'margin-bottom:8px;">Operational Recommendation</div>'
+            f'<div style="color:#FFFFFF;line-height:1.6;">'
+            f'{_planning_escape(" ".join(recommendation_parts))}</div></div>',
+            unsafe_allow_html=True,
+        )
 
-        # Optional interpretation: keep the comparison table visible by default.
-        with st.expander("Interpret these forecast results", expanded=False):
-            peak_change_pct = (scenario_peak - base_peak) / base_peak * 100 if base_peak > 0 else None
-            energy_change_pct = energy_delta / base_energy_kwh * 100 if base_energy_kwh > 0 else None
-            peak_phrase = (
-                f"{abs(peak_change_pct):.1f}% {'higher' if peak_change_pct >= 0 else 'lower'}"
-                if peak_change_pct is not None else "different"
+        with st.expander("Detailed Forecast Comparison & Methodology", expanded=False):
+            st.markdown("**How planning-based forecasting works**")
+            st.write(
+                "The LSTM baseline demand forecast is used to assess the effect of selected "
+                "charging and depot operating conditions. Adjust the inputs to compare peak demand, "
+                "capacity utilisation and remaining headroom."
             )
-            energy_phrase = (
-                f"{abs(energy_change_pct):.1f}% {'more' if energy_change_pct >= 0 else 'less'}"
-                if energy_change_pct is not None else "a different amount of"
+            st.markdown("**Applied planning assumptions**")
+            mechanics_rows = [
+                ("Fleet / charging growth", f"{scenario_growth_pct}%"),
+                ("Additional fixed site load", f"{scenario_fixed_load_kw:.1f} kW"),
+                ("Peak charging coincidence uplift", f"{scenario_coincidence_pct}%"),
+                ("Managed charging reduction", f"{scenario_reduction_pct}%"),
+                ("Flexible charging available", f"{flexible_pct}%"),
+                ("Charging time shift", "None" if shift_hours == 0 else f"{shift_hours:g} hours"),
+                ("Temporary charging surge", (
+                    f"{stress_uplift_pct}% uplift from +{stress_start_hour:g}h for {stress_duration_hours:g}h"
+                    if stress_enabled and stress_uplift_pct > 0 else "Not applied"
+                )),
+                ("Peak-period load cap", f"{scenario_load_cap_kw:.1f} kW" if cap_enabled else "Not applied"),
+            ]
+            _assumption_cards = ''.join(
+                '<div style="background:#1D426D;border:1px solid #365C84;'
+                'border-radius:11px;padding:12px;">'
+                f'<div style="color:#C7DCEF;font-size:.8rem;">{_planning_escape(label)}</div>'
+                f'<div style="color:#FFFFFF;font-weight:800;font-size:1.05rem;margin-top:6px;">{_planning_escape(value)}</div>'
+                '</div>' for label, value in mechanics_rows
             )
             st.markdown(
-                f"**Peak demand:** The LSTM baseline peaks at **{base_peak:.1f} kW**, "
-                f"while the planning-based forecast peaks at **{scenario_peak:.1f} kW** "
-                f"({peak_phrase}). "
-                f"The baseline peak occurs at **{base_peak_time:%d %b %Y, %H:%M}** "
-                f"and the planning-based peak at **{planning_peak_time:%d %b %Y, %H:%M}**.\n\n"
-                f"**Energy:** Total forecast demand changes from **{base_energy_kwh:.1f} kWh** "
-                f"to **{scenario_energy_kwh:.1f} kWh**, representing {energy_phrase} energy "
-                f"over the same forecast window.\n\n"
-                f"**Capacity headroom:** Remaining headroom changes from **{base_headroom:.1f} kW** "
-                f"to **{scenario_headroom:.1f} kW**. "
-                f"The planning scenario has **{scenario_warning_minutes:.0f} minutes** of warning "
-                f"exposure and **{scenario_breach_minutes:.0f} minutes** of capacity-breach exposure.\n\n"
-                "**Interpretation:** The planning-based forecast is a scenario derived from "
-                "the saved LSTM baseline, not a separately trained forecasting model. "
-                "This comparison assesses operational impact; it does not establish "
-                "LSTM accuracy relative to other algorithms."
+                '<div style="background:#102B50;border-radius:15px;padding:14px;'
+                'display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));'
+                'gap:10px;margin:10px 0 16px;">' + _assumption_cards + '</div>',
+                unsafe_allow_html=True,
             )
-            if scenario_headroom < 0:
-                st.warning(f"**Planning action:** The adjusted scenario exceeds the configured planning capacity "
-                           f"by {abs(scenario_headroom):.1f} kW at peak. Review managed charging, peak coincidence "
-                           "and the need for additional capacity before committing to expansion.")
-            elif scenario_warning_minutes > 0:
-                st.info("**Planning action:** The adjusted forecast reaches the warning band. "
-                        "Consider staggering flexible charging and monitoring headroom during peak periods.")
-            else:
-                st.info("**Planning action:** No threshold exposure is predicted for this scenario, "
-                        "but retain a margin for uncertainty and validate assumptions against measured demand.")
-            if scenario_peak < base_peak and scenario_growth_pct > 0:
-                st.warning("**Model sensitivity:** Peak demand fell despite positive fleet growth. "
-                           "This non-monotonic response warrants checking recursive LSTM stability; "
-                           "it is not evidence that growth reduces electricity demand.")
+            st.markdown("**Detailed forecast comparison**")
+            # ------------------------------------------------------------
+            # Baseline vs scenario comparison table
+            # ------------------------------------------------------------
+            scenario_comparison = pd.DataFrame(
+                [
+                    ("Peak demand (kW)", base_peak, scenario_peak, scenario_peak - base_peak),
+                    ("Remaining headroom (kW)", base_headroom, scenario_headroom, scenario_headroom - base_headroom),
+                    ("Energy in forecast window (kWh)", base_energy_kwh, scenario_energy_kwh, energy_delta),
+                    ("Warning exposure (minutes)", base_warning_minutes, scenario_warning_minutes, scenario_warning_minutes - base_warning_minutes),
+                    ("Breach exposure (minutes)", base_breach_minutes, scenario_breach_minutes, scenario_breach_minutes - base_breach_minutes),
+                ],
+                columns=["Measure", "Baseline Demand Forecast", "Adjusted Demand Forecast", "Difference"],
+            )
+
+            st.markdown("#### LSTM Baseline Demand Forecast vs Planning-Based Demand Forecast")
+            st.caption(f"Baseline peak: {base_peak_time:%d %b %Y, %H:%M} · Planning-based peak: {planning_peak_time:%d %b %Y, %H:%M}")
+
+            def _scenario_difference_class(measure, difference):
+                measure_text = str(measure).lower()
+                diff = float(difference)
+
+                if abs(diff) < 1e-9:
+                    return "scenario-neutral"
+
+                if "headroom" in measure_text:
+                    return "scenario-positive" if diff > 0 else "scenario-negative"
+
+                # Lower peak / warning / breach is positive.
+                if any(token in measure_text for token in ["peak", "warning", "breach"]):
+                    return "scenario-positive" if diff < 0 else "scenario-negative"
+
+                return "scenario-neutral"
+
+            scenario_rows_html = []
+            for _, scenario_row in scenario_comparison.iterrows():
+                measure_name = str(scenario_row["Measure"])
+                baseline_value = float(scenario_row["Baseline Demand Forecast"])
+                scenario_value = float(scenario_row["Adjusted Demand Forecast"])
+                difference_value = float(scenario_row["Difference"])
+                difference_class = _scenario_difference_class(
+                    measure_name,
+                    difference_value,
+                )
+
+                scenario_rows_html.append(
+                    "<tr>"
+                    f'<td class="scenario-measure">{measure_name}</td>'
+                    f'<td class="scenario-baseline">{baseline_value:.1f}</td>'
+                    f'<td class="scenario-current">{scenario_value:.1f}</td>'
+                    f'<td class="{difference_class}">{difference_value:+.1f}</td>'
+                    "</tr>"
+                )
+
+            scenario_table_html = (
+                '<div class="ov-scenario-table-wrap">'
+                '<table class="ov-scenario-table">'
+                "<thead><tr>"
+                "<th>Measure</th>"
+                "<th>LSTM Baseline Demand Forecast</th>"
+                "<th>Planning-Based Demand Forecast</th>"
+                "<th>Difference</th>"
+                "</tr></thead>"
+                "<tbody>"
+                + "".join(scenario_rows_html)
+                + "</tbody></table></div>"
+            )
+            st.markdown(scenario_table_html, unsafe_allow_html=True)
+
+            # Optional interpretation: keep the comparison table visible by default.
+            with st.expander("Interpret these forecast results", expanded=False):
+                peak_change_pct = (scenario_peak - base_peak) / base_peak * 100 if base_peak > 0 else None
+                energy_change_pct = energy_delta / base_energy_kwh * 100 if base_energy_kwh > 0 else None
+                peak_phrase = (
+                    f"{abs(peak_change_pct):.1f}% {'higher' if peak_change_pct >= 0 else 'lower'}"
+                    if peak_change_pct is not None else "different"
+                )
+                energy_phrase = (
+                    f"{abs(energy_change_pct):.1f}% {'more' if energy_change_pct >= 0 else 'less'}"
+                    if energy_change_pct is not None else "a different amount of"
+                )
+                st.markdown(
+                    f"**Peak demand:** The LSTM baseline peaks at **{base_peak:.1f} kW**, "
+                    f"while the planning-based forecast peaks at **{scenario_peak:.1f} kW** "
+                    f"({peak_phrase}). "
+                    f"The baseline peak occurs at **{base_peak_time:%d %b %Y, %H:%M}** "
+                    f"and the planning-based peak at **{planning_peak_time:%d %b %Y, %H:%M}**.\n\n"
+                    f"**Energy:** Total forecast demand changes from **{base_energy_kwh:.1f} kWh** "
+                    f"to **{scenario_energy_kwh:.1f} kWh**, representing {energy_phrase} energy "
+                    f"over the same forecast window.\n\n"
+                    f"**Capacity headroom:** Remaining headroom changes from **{base_headroom:.1f} kW** "
+                    f"to **{scenario_headroom:.1f} kW**. "
+                    f"The planning scenario has **{scenario_warning_minutes:.0f} minutes** of warning "
+                    f"exposure and **{scenario_breach_minutes:.0f} minutes** of capacity-breach exposure.\n\n"
+                    "**Interpretation:** The planning-based forecast is a scenario derived from "
+                    "the saved LSTM baseline, not a separately trained forecasting model. "
+                    "This comparison assesses operational impact; it does not establish "
+                    "LSTM accuracy relative to other algorithms."
+                )
+                if scenario_headroom < 0:
+                    st.warning(f"**Planning action:** The adjusted scenario exceeds the configured planning capacity "
+                               f"by {abs(scenario_headroom):.1f} kW at peak. Review managed charging, peak coincidence "
+                               "and the need for additional capacity before committing to expansion.")
+                elif scenario_warning_minutes > 0:
+                    st.info("**Planning action:** The adjusted forecast reaches the warning band. "
+                            "Consider staggering flexible charging and monitoring headroom during peak periods.")
+                else:
+                    st.info("**Planning action:** No threshold exposure is predicted for this scenario, "
+                            "but retain a margin for uncertainty and validate assumptions against measured demand.")
+                if scenario_peak < base_peak and scenario_growth_pct > 0:
+                    st.warning("**Model sensitivity:** Peak demand fell despite positive fleet growth. "
+                               "This non-monotonic response warrants checking recursive LSTM stability; "
+                               "it is not evidence that growth reduces electricity demand.")
 
 elif nav_selection == "⚙️ Model Performance":
     _depot_workspace_navy_style()
