@@ -59,6 +59,30 @@ section[data-testid="stMain"] [data-testid="stButton"] button:not(:disabled):hov
 }
 
 
+
+/* Readable disabled controls. These declarations override the Streamlit theme
+   while preserving each button's disabled state and its original behaviour. */
+[data-testid="stAppViewContainer"] button:disabled,
+[data-testid="stAppViewContainer"] button[aria-disabled="true"] {
+  background: #cbd5e1 !important;
+  background-image: none !important;
+  border: 1px solid #64748b !important;
+  color: #1e293b !important;
+  -webkit-text-fill-color: #1e293b !important;
+  opacity: 1 !important;
+  filter: none !important;
+  text-shadow: none !important;
+  cursor: not-allowed !important;
+}
+[data-testid="stAppViewContainer"] button:disabled *,
+[data-testid="stAppViewContainer"] button[aria-disabled="true"] * {
+  color: #1e293b !important;
+  -webkit-text-fill-color: #1e293b !important;
+  opacity: 1 !important;
+  filter: none !important;
+  text-shadow: none !important;
+}
+
 /* Optivolt nine-depot performance: explicit visual hierarchy, without replacing widgets. */
 .ov-perf-eyebrow {color:#2563eb;font-size:.77rem;font-weight:800;letter-spacing:.11em;margin:.25rem 0 .55rem;}
 .ov-perf-title {color:#102a56;font-size:clamp(1.85rem,2.7vw,2.8rem);font-weight:800;letter-spacing:-.035em;line-height:1.17;margin:0 0 .55rem;}
@@ -80,12 +104,12 @@ section[data-testid="stMain"] [data-testid="stButton"] button:not(:disabled):hov
 .st-key-ov_perf_result_kpis [data-testid="stMetricValue"] {color:#102a56 !important;}
 
 /* Primary actions: ensure readable white labels in all nested button nodes. */
-.stButton button[kind="primary"],
-.stButton button[data-testid="stBaseButton-primary"],
-.stFormSubmitButton button[kind="primary"] { color:#fff !important; font-weight:750 !important; }
-.stButton button[kind="primary"] *,
-.stButton button[data-testid="stBaseButton-primary"] *,
-.stFormSubmitButton button[kind="primary"] * { color:#fff !important; -webkit-text-fill-color:#fff !important; }
+.stButton button[kind="primary"]:not(:disabled),
+.stButton button[data-testid="stBaseButton-primary"]:not(:disabled),
+.stFormSubmitButton button[kind="primary"]:not(:disabled) { color:#fff !important; font-weight:750 !important; }
+.stButton button[kind="primary"]:not(:disabled) *,
+.stButton button[data-testid="stBaseButton-primary"]:not(:disabled) *,
+.stFormSubmitButton button[kind="primary"]:not(:disabled) * { color:#fff !important; -webkit-text-fill-color:#fff !important; }
 /* Compact spacing without hiding controls. */
 section[data-testid="stMain"] [data-testid="stVerticalBlock"] { gap:.48rem !important; }
 section[data-testid="stMain"] [data-testid="stMarkdownContainer"] h2,
@@ -1304,16 +1328,19 @@ section[data-testid="stMain"] [data-testid="stWidgetLabel"] {margin-bottom: .12r
 section[data-testid="stMain"] [data-testid="stAlert"] {padding: .55rem .8rem !important; margin: .2rem 0 !important;}
 section[data-testid="stMain"] [data-testid="stPlotlyChart"] {margin: .2rem 0 .4rem !important;}
 /* Streamlit may wrap the button label in a nested paragraph/span. */
-.stButton button[kind="primary"], .stButton button[data-testid="stBaseButton-primary"],
-.stFormSubmitButton button[kind="primary"],
-.stButton button[kind="primary"] *, .stButton button[data-testid="stBaseButton-primary"] *,
-.stFormSubmitButton button[kind="primary"] * {
+.stButton button[kind="primary"]:not(:disabled),
+.stButton button[data-testid="stBaseButton-primary"]:not(:disabled),
+.stFormSubmitButton button[kind="primary"]:not(:disabled),
+.stButton button[kind="primary"]:not(:disabled) *,
+.stButton button[data-testid="stBaseButton-primary"]:not(:disabled) *,
+.stFormSubmitButton button[kind="primary"]:not(:disabled) * {
   color: #fff !important; -webkit-text-fill-color:#fff !important; font-weight:750 !important;
 }
-.stButton button[kind="primary"], .stFormSubmitButton button[kind="primary"] {text-shadow: 0 1px 1px rgba(0,0,0,.16);}
+.stButton button[kind="primary"]:not(:disabled),
+.stFormSubmitButton button[kind="primary"]:not(:disabled) {text-shadow: 0 1px 1px rgba(0,0,0,.16);}
 /* Public login/register actions may be ordinary Streamlit buttons. */
-[data-testid="stMain"] .stButton button[style*="background"],
-[data-testid="stMain"] .stButton button[style*="background"] * {color:#fff !important;}
+[data-testid="stMain"] .stButton button[style*="background"]:not(:disabled),
+[data-testid="stMain"] .stButton button[style*="background"]:not(:disabled) * {color:#fff !important;}
 /* Use the available width to the right of the permanent blue sidebar. */
 [data-testid="stMainBlockContainer"],
 [data-testid="stMainBlockContainer"] > div,
@@ -1408,54 +1435,3 @@ except st.errors.StreamlitPageNotFoundError:
     st.switch_page(pages[0])
 sidebar()
 current.run()
-# Final accessible-control styling: injected after the active page has rendered.
-# This must be last because the legacy admin page injects additional styles
-# when it runs, which can otherwise override the dashboard's earlier CSS.
-st.markdown("""<style id="optivolt-final-contrast-fix">
-/* Keep the disabled state visible without sacrificing text contrast. */
-[data-testid="stAppViewContainer"] :is(
-  [data-testid="stButton"], [data-testid="stDownloadButton"],
-  [data-testid="stFormSubmitButton"], .stButton, .stDownloadButton,
-  .stFormSubmitButton
-):has(button:disabled) { opacity: 1 !important; filter: none !important; }
-
-[data-testid="stAppViewContainer"] :is(
-  [data-testid="stButton"], [data-testid="stDownloadButton"],
-  [data-testid="stFormSubmitButton"], .stButton, .stDownloadButton,
-  .stFormSubmitButton
-) button:disabled,
-[data-testid="stAppViewContainer"] button[data-testid^="stBaseButton"]:disabled,
-[data-testid="stAppViewContainer"] button[aria-disabled="true"] {
-  background: #cbd5e1 !important;
-  background-image: none !important;
-  color: #1e293b !important;
-  -webkit-text-fill-color: #1e293b !important;
-  border: 1px solid #64748b !important;
-  opacity: 1 !important;
-  filter: none !important;
-  box-shadow: none !important;
-  text-shadow: none !important;
-  cursor: not-allowed !important;
-}
-[data-testid="stAppViewContainer"] button:disabled :is(p, span, div, strong, small, svg),
-[data-testid="stAppViewContainer"] button[aria-disabled="true"] :is(p, span, div, strong, small, svg) {
-  color: #1e293b !important;
-  -webkit-text-fill-color: #1e293b !important;
-  opacity: 1 !important;
-  filter: none !important;
-  text-shadow: none !important;
-  fill: currentColor;
-}
-[data-testid="stAppViewContainer"] :is(input, textarea):disabled,
-[data-testid="stAppViewContainer"] [aria-disabled="true"]:is([role="combobox"], [role="textbox"]) {
-  color: #334155 !important;
-  -webkit-text-fill-color: #334155 !important;
-  background-color: #e2e8f0 !important;
-  opacity: 1 !important;
-}
-[data-testid="stAppViewContainer"] [data-testid="stAlert"] :is(p, li, strong),
-[data-testid="stAppViewContainer"] [data-testid="stCaptionContainer"] p {
-  color: #243449 !important;
-  -webkit-text-fill-color: #243449 !important;
-}
-</style>""", unsafe_allow_html=True)
