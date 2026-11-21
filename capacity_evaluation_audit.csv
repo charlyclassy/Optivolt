@@ -1,0 +1,16 @@
+depot,model,horizon_hours,risk_capacity_kw,holdout_windows,risk_evaluated_points,risk_tp,risk_fp,risk_fn,risk_tn,test_f1_score,test_balanced_accuracy,test_breach_recall,test_false_alarm_ratio,evaluation_mae_kw,source_saved_model
+Bexleyheath,LSTM 1,72,17,19,5472,0,0,164,5308,0.0,0.5,0.0,,3.4160476340731223,models/bexleyheath.keras
+Bexleyheath,LSTM 2,720,17,59,169920,0,0,4338,165582,0.0,0.5,0.0,,2.6941869258880615,models/long_term_lstm/bexleyheath/model.keras
+Camden,LSTM 1,72,21,19,5472,0,0,77,5395,0.0,0.5,0.0,,3.904190133733117,models/camden.keras
+Camden,LSTM 2,720,21,59,169920,0,0,2110,167810,0.0,0.5,0.0,,2.799525260925293,models/long_term_lstm/camden/model.keras
+Dartford,LSTM 1,72,45,19,5472,0,0,14,5458,0.0,0.5,0.0,,12.332019995871107,models/dartford.keras
+Dartford,LSTM 2,720,45,59,169920,0,0,707,169213,0.0,0.5,0.0,,5.4152326583862305,models/long_term_lstm/dartford/model.keras
+Islington,LSTM 1,72,13,19,5472,0,0,295,5177,0.0,0.5,0.0,,3.2969221997930966,models/islington.keras
+Islington,LSTM 2,720,13,59,169920,0,0,6712,163208,0.0,0.5,0.0,,2.787776231765747,models/long_term_lstm/islington/model.keras
+Mount Pleasant,LSTM 1,72,260,19,5472,0,0,23,5449,0.0,0.5,0.0,,83.94696559674094,models/mount_pleasant.keras
+Mount Pleasant,LSTM 2,720,260,59,169920,0,0,811,169109,0.0,0.5,0.0,,26.56222915649414,models/long_term_lstm/mount_pleasant/model.keras
+Orpington,LSTM 1,72,14,19,5472,0,0,61,5411,0.0,0.5,0.0,,2.875593219366149,models/orpington.keras
+Orpington,LSTM 2,720,14,59,169920,0,0,1894,168026,0.0,0.5,0.0,,2.226463556289673,models/long_term_lstm/orpington/model.keras
+Premier Park,LSTM 2,720,70,59,169920,0,0,414,169506,0.0,0.5,0.0,,4.941690921783447,models/long_term_lstm/premier_park/model.keras
+Victoria,LSTM 2,720,29,59,169920,0,0,67,169853,0.0,0.5,0.0,,4.986928939819336,models/long_term_lstm/victoria/model.keras
+Whitechapel,LSTM 2,720,55,59,169920,0,0,826,169094,0.0,0.5,0.0,,5.620032787322998,models/long_term_lstm/whitechapel/model.keras

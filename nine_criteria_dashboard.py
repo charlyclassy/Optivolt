@@ -128,9 +128,9 @@ def archived_rows(metrics_csv, predictions_csv=None):
 def _format(value, unit):
     try:
         n = float(value)
-        return f'{n:,.3f}{(" " + unit) if unit else ""}' if np.isfinite(n) else 'Not evaluated'
+        return f'{n:,.3f}{(" " + unit) if unit else ""}' if np.isfinite(n) else 'Not recorded'
     except (TypeError, ValueError):
-        return 'Not evaluated'
+        return 'Not recorded'
 
 
 def render_dashboard(rows, *, title, context, key):
@@ -161,7 +161,7 @@ def render_dashboard(rows, *, title, context, key):
             )
             with columns[idx % len(columns)]:
                 components.html('<html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;padding:0;background:transparent;font-family:Inter,Arial,sans-serif}*{box-sizing:border-box}</style></head><body>'+card+'</body></html>', height=125, scrolling=False)
-    st.caption('Not evaluated means evidence is unavailable or the denominator is undefined; it does not mean zero.')
+    st.caption('Not recorded means the original evaluation did not supply a measured value or the metric has an undefined denominator; it does not mean zero.')
     st.caption('Peak-demand MAE = mean absolute difference between actual and predicted daily maxima on matched held-out dates. Training time requires the original run record; the previous-day baseline requires no model training.')
     with st.expander('Compare all models across the nine criteria', expanded=False):
         columns = ['Model'] + [m[1] for _, group in CRITERIA for m in group]
@@ -209,4 +209,4 @@ def render_archived_four_model_comparison(metrics_csv, predictions_csv):
                        frame.to_csv(index=False).encode('utf-8'),
                        file_name='bexleyheath_four_model_nine_criteria.csv', mime='text/csv',
                        key='bexleyheath_four_model_visible_download')
-    st.caption('Peak-demand MAE uses matched daily maxima from held-out predictions. The previous-day baseline has no trainable model, so its training duration is Not evaluated.')
+    st.caption('Peak-demand MAE uses matched daily maxima from held-out predictions. The previous-day baseline has no trainable model, so its training duration is not applicable.')

@@ -1294,6 +1294,25 @@ def render_fast_forecast(name):
         _short_meta = _json.loads(_short_meta_file.read_text(encoding='utf-8')) if _short_meta_file.is_file() else {}
     except (OSError, ValueError, TypeError):
         _short_meta = {}
+    # Load independently reproduced held-out capacity metrics for each saved LSTM.
+    # Validate the source model by comparing its evaluation MAE with the stored
+    # saved-model evaluation. Never use risk scores from a different depot.
+    try:
+        _risk_file = _Path(__file__).resolve().parent / 'lstm_capacity_evaluations.json'
+        _risk_all = _json.loads(_risk_file.read_text(encoding='utf-8'))
+        _risk_depot = _risk_all.get(name, {})
+        for _meta, _risk_kind in ((_short_meta, 'short'), (_long_meta, 'long')):
+            _evidence = _risk_depot.get(_risk_kind, {})
+            if (abs(float(_evidence['evaluation_mae_kw']) - float(_meta['test_mae_kw'])) < .02
+                    and abs(float(st.session_state.get('grid_limit', 0)) - float(_evidence['risk_capacity_kw'])) < .001):
+                for _key in ('test_f1_score', 'test_balanced_accuracy', 'test_breach_recall',
+                             'test_false_alarm_ratio', 'risk_tp', 'risk_fp', 'risk_fn',
+                             'risk_tn', 'risk_capacity_kw'):
+                    _meta[_key] = _evidence.get(_key)
+                _meta['_risk_evidence_verified'] = True
+                _meta['_risk_no_predicted_alerts'] = (_evidence['risk_tp'] + _evidence['risk_fp'] == 0)
+    except (OSError, ValueError, TypeError, KeyError, ZeroDivisionError):
+        pass
     _short_metrics = {
         'MAE (kW)': _show_metric(_short_meta.get('test_mae_kw'), ' kW'),
         'RMSE (kW)': _show_metric(_short_meta.get('test_rmse_kw'), ' kW'),
@@ -1313,7 +1332,7 @@ def render_fast_forecast(name):
                         return f'{n*scale:,.3f}{unit}'
                 except (ValueError, TypeError):
                     continue
-            return 'Not evaluated'
+            return 'Not recorded'
         return [
             ('MAE', m['MAE (kW)']),
             ('RMSE', m['RMSE (kW)']),
@@ -1321,7 +1340,7 @@ def render_fast_forecast(name):
             ('F1-score', measured('test_f1_score', 'f1_score', scale=100, unit='%')),
             ('Balanced accuracy', measured('test_balanced_accuracy', 'balanced_accuracy', scale=100, unit='%')),
             ('Capacity-breach recall', measured('test_breach_recall', 'breach_recall', scale=100, unit='%')),
-            ('False alarm ratio', measured('test_false_alarm_ratio', 'false_alarm_ratio', scale=100, unit='%')),
+            ('False alarm ratio', ('No alerts issued' if metadata.get('_risk_evidence_verified') and metadata.get('_risk_no_predicted_alerts') else measured('test_false_alarm_ratio', 'false_alarm_ratio', scale=100, unit='%'))),
             ('Peak-demand MAE', measured('test_peak_demand_mae_kw', 'peak_demand_mae_kw', 'test_peak_error_kw', unit=' kW')),
             ('Training duration', measured('training_seconds', 'training_duration_seconds', 'training_time_seconds', unit=' s')),
         ]
@@ -1350,7 +1369,7 @@ def render_fast_forecast(name):
         )
     import streamlit.components.v1 as _eval_components
     st.markdown('#### Nine-criteria evaluation · LSTM 1 and LSTM 2')
-    st.caption('Each model displays nine criteria from its own held-out evaluation. Unrecorded metrics are shown as Not evaluated, not borrowed from the Bexleyheath four-model experiment.')
+    st.caption('Nine criteria for each saved model. Capacity-risk scores use matched historical held-out predictions and the depot planning threshold; training duration is not available without the original training log.')
     _left_card, _right_card = st.columns(2, gap='medium')
     with _left_card:
         _eval_components.html('<html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;padding:0;background:transparent;font-family:Inter,Arial,sans-serif}*{box-sizing:border-box}</style></head><body>'+_nine_scorecard('LSTM 1 · Short-term', 'Recursive forecast · 72 hours', _short_metrics, _short_meta)+'</body></html>', height=655, scrolling=False)
@@ -1378,7 +1397,7 @@ def render_fast_forecast(name):
             '**Confidence:** These metrics support an evidence-based assessment, but reliability '
             'also depends on avoiding missed peaks and performing well on unseen real data.'
         )
-    st.caption('Peak-demand MAE is the mean absolute difference between actual and predicted **peak demand per evaluation window** (72 hours for LSTM 1; 30 days for LSTM 2). It is not a daily-peak error. Capacity-risk metrics require matched held-out predictions and an explicitly defined capacity threshold. Training duration requires an original training log. Missing results are not zero. The Bexleyheath four-model experiment is separate.')
+    st.caption('Peak-demand MAE compares actual and predicted maxima per evaluation window (72 hours for LSTM 1; 30 days for LSTM 2). Capacity-risk scores are historical and threshold-specific. No alerts issued means the false-alarm ratio denominator is zero, not a measured 0% rate. Original training durations were not saved. Bexleyheath four-model experiment results are separate.')
     st.markdown('#### Forecast scenario')
     st.caption('Choose the prediction date and expected fleet growth, then generate a forecast.')
     scenario = mode.startswith('Future demand prediction')

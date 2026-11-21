@@ -7518,6 +7518,18 @@ elif nav_selection == "⚙️ Model Performance":
     """, unsafe_allow_html=True)
 
 
+    # Archived Bexleyheath experiment is available regardless of the current depot.
+    # It is intentionally isolated from the selected depot's held-out evaluation.
+    try:
+        from nine_criteria_dashboard import render_archived_four_model_comparison as _render_four_model_archive
+        _archive_dir = Path(__file__).resolve().parent
+        _render_four_model_archive(
+            _archive_dir / 'model_comparison_metrics.csv',
+            _archive_dir / 'heldout_predictions_all_models.csv',
+        )
+    except (ImportError, OSError, ValueError, KeyError) as _archive_render_error:
+        st.warning(f'Four-model archived comparison unavailable: {_archive_render_error}')
+
     # Only display results derived from the selected depot's active pipeline.
     _performance_depot = st.session_state.get("current_depot", "")
     _optivolt_info_cards([
@@ -7526,6 +7538,13 @@ elif nav_selection == "⚙️ Model Performance":
         ("GRID CAPACITY", f"{float(st.session_state['grid_limit']):,.1f} kW"),
         ("MODEL COMPARISON", "Four models · opt-in training"),
     ])
+    # Saved LSTM 1 / LSTM 2 evaluation from their original held-out windows.
+    # This comparison is separate from the Bexleyheath four-model experiment.
+    try:
+        from lstm_evaluation_cards import render as _render_saved_lstm_evidence
+        _render_saved_lstm_evidence(_performance_depot, st.session_state.get("grid_limit"))
+    except (ImportError, OSError, ValueError, TypeError, KeyError) as _saved_lstm_evidence_error:
+        st.warning(f"Saved LSTM evaluation cards are unavailable: {_saved_lstm_evidence_error}")
     st.caption("Evidence is depot-specific. A model trained elsewhere is not evidence of this depot's accuracy until evaluated on its own held-out readings.")
     _optivolt_result_card("How to read model performance",
         "Lower MAE and RMSE mean smaller demand prediction errors. Breach recall measures how many real grid-capacity breaches were detected. A good average error does not guarantee safe breach detection.",
@@ -7576,10 +7595,37 @@ elif nav_selection == "⚙️ Model Performance":
             _depot_metrics = pd.DataFrame(_rows)
             st.markdown("#### Original saved model · historical held-out evaluation")
             st.caption("This is saved historical evaluation evidence, not a newly generated forecast. The evaluation dates are shown below when present in the original saved records.")
-            _c1, _c2, _c3 = st.columns(3)
-            _c1.metric("Selected depot", str(_performance_depot))
-            _c2.metric("Held-out observations", f"{int(_valid.sum()):,}")
-            _c3.metric("Saved LSTM MAE", f"{_depot_metrics.iloc[1]['MAE (kW)']:.3f} kW")
+            # Self-contained blue cards avoid global Streamlit/CSS text-colour overrides.
+            import streamlit.components.v1 as _model_card_components
+            _model_card_items = (
+                ("SELECTED DEPOT", str(_performance_depot)),
+                ("HELD-OUT OBSERVATIONS", f"{int(_valid.sum()):,}"),
+                ("SAVED LSTM MAE", f"{_depot_metrics.iloc[1]['MAE (kW)']:.3f} kW"),
+            )
+            _model_card_markup = "".join(
+                '<div class="card"><div class="label">'
+                + _html_escape(label)
+                + '</div><div class="value">'
+                + _html_escape(value)
+                + '</div></div>'
+                for label, value in _model_card_items
+            )
+            _model_card_components.html(
+                '<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1">'
+                '<style>*{box-sizing:border-box}html,body{margin:0;background:transparent;font-family:Inter,Arial,sans-serif}'
+                '.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;padding:3px 1px 12px}'
+                '.card{background:#173C70;border:1px solid #3568A8;border-top:5px solid #377BFF;border-radius:18px;'
+                'padding:20px 22px;min-height:142px;box-shadow:0 10px 23px rgba(17,46,88,.12)}'
+                '.label{color:#C6DAFA!important;-webkit-text-fill-color:#C6DAFA!important;font-size:13px;'
+                'font-weight:750;letter-spacing:.04em;text-transform:uppercase;margin-bottom:16px}'
+                '.value{color:#FFFFFF!important;-webkit-text-fill-color:#FFFFFF!important;'
+                'font-size:clamp(18px,2.1vw,27px);line-height:1.2;font-weight:800;overflow-wrap:anywhere}'
+                '@media(max-width:640px){.cards{grid-template-columns:1fr;gap:9px}.card{min-height:90px;padding:13px 16px}'
+                '.label{margin-bottom:7px}.value{font-size:21px}}'
+                '</style></head><body><div class="cards">' + _model_card_markup + '</div></body></html>',
+                height=188,
+                scrolling=False,
+            )
             # The duplicate two-model score table and the coloured review/retrain
             # banner are intentionally omitted from the presentation view.
             # Scores remain computed above for traceability and are shown in the
@@ -7651,20 +7697,6 @@ elif nav_selection == "⚙️ Model Performance":
             _cmp["Training_Time_Seconds"] = pd.to_numeric(_cmp["Training_Time_Seconds"], errors="raise")
             if _cmp["Model"].duplicated().any():
                 raise ValueError("Archived comparison contains duplicate model rows")
-            try:
-                from nine_criteria_dashboard import archived_rows as _nine_archived_rows, render_dashboard as _nine_dashboard
-                _archived_nine = _nine_archived_rows(FINAL_METRICS_FILE, FINAL_PREDICTIONS_FILE)
-                _nine_dashboard(
-                    _archived_nine, title="Nine-criteria evaluation · four-model experiment",
-                    context=("Archived Bexleyheath held-out experiment only. "
-                             "Peak-demand MAE is calculated from matching daily maxima in "
-                             "heldout_predictions_all_models.csv. Training durations come "
-                             "from model_comparison_metrics.csv. "
-                             "These results are not transferable to other depots or forecast horizons."),
-                    key="bexleyheath_four_model_experiment",
-                )
-            except (ValueError, TypeError, ImportError, KeyError, OSError) as _nine_archived_error:
-                st.warning(f"Archived nine-criteria comparison unavailable: {_nine_archived_error}")
             st.subheader("Final Model Comparison · archived experiment")
             st.caption(
                 "Historical saved comparison, not today's forecast or a currently running training job. "
