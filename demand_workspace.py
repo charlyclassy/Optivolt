@@ -2,6 +2,7 @@
 import html
 import streamlit as st
 import depot_updates as dep
+from forecast_status_cards import render_card
 
 SOURCES = ('Use existing UKPN depot data', 'Upload new depot demand data', 'Update existing depot demand data')
 
@@ -49,7 +50,7 @@ def render(selected=None):
                     _col1.metric('Saved LSTM peak', f'{max(_series):.2f} kW')
                     _col2.metric('Forecast grid limit', f"{float(_snapshot['capacity_kw']):.2f} kW")
                     _col3.metric('Forecast readings', f'{len(_series):,}')
-                    st.success(f'Shared forecast reference: {_ref} · {depot} · {_snapshot["model"]}. Match this reference in Planning, Alerts and Reports.')
+                    render_card('Shared LSTM forecast reference', f'{depot} · {_snapshot["model"]}. This saved prediction is the common baseline for Planning, System Alerts and Reports.', tone='blue', reference=_ref)
                     _storage = _ov_forecast_store.last_save_status().get('storage')
                     if _storage:
                         st.caption(f'Saved in: {_storage}. Local Streamlit storage is not guaranteed to survive an app restart.')

@@ -13,6 +13,7 @@ import streamlit as st
 
 import depot_updates as dep
 import forecast_results_store
+from forecast_status_cards import render_card
 
 
 def evaluate_snapshot(payload):
@@ -81,20 +82,22 @@ def render(selected=None):
     series = risk['series']
     generated = pd.to_datetime(payload.get('generated_at_utc'), utc=True, errors='coerce')
     generated_text = generated.strftime('%d %b %Y %H:%M UTC') if pd.notna(generated) else 'Unknown'
-    st.caption(f"**Depot:** {depot} · **Active model:** {payload['model']} · "
-               f"**Forecast generated:** {generated_text} · "
-               f"**Forecast period:** {series.index[0]:%d %b %Y %H:%M} – {series.index[-1]:%d %b %Y %H:%M} · "
-               f"**Forecast ref:** {forecast_results_store.forecast_reference(payload)}")
+    render_card(
+        'Saved LSTM forecast · shared reference',
+        f"Depot: {depot} · Model: {payload['model']} · Generated: {generated_text} · "
+        f"Forecast period: {series.index[0]:%d %b %Y %H:%M} – {series.index[-1]:%d %b %Y %H:%M}",
+        tone='blue', reference=forecast_results_store.forecast_reference(payload),
+    )
 
     if risk['breaches']:
-        st.error('Capacity breach predicted — the saved LSTM forecast reaches or exceeds the configured grid limit.')
+        render_card('Capacity breach predicted', 'The saved LSTM forecast reaches or exceeds the configured grid limit.', tone='red')
         recommendation = ('Consider staggering charging, reducing simultaneous vehicle charging, and verifying the depot grid-capacity setting. '
                           'Review the forecast peak and timing before taking action.')
     elif risk['warnings']:
-        st.warning('Capacity warning predicted — the saved LSTM forecast reaches 80% of the configured grid limit.')
+        render_card('Capacity warning predicted', 'The saved LSTM forecast reaches 80% of the configured grid limit.', tone='amber')
         recommendation = 'Review anticipated busy periods, stagger flexible charging where possible, and continue monitoring.'
     else:
-        st.success('No capacity warning predicted — the saved LSTM forecast stays below 80% of the configured grid capacity.')
+        render_card('No capacity warning predicted', 'The saved LSTM forecast stays below 80% of the configured grid capacity.', tone='green')
         recommendation = 'No capacity intervention is indicated by this forecast. Continue routine monitoring.'
 
     st.subheader('Capacity Risk Summary')

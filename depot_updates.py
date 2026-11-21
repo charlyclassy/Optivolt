@@ -19,6 +19,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import streamlit as st
+from forecast_status_cards import render_card
 
 ROOT = Path(__file__).resolve().parent
 BUILTIN = {
@@ -1491,7 +1492,7 @@ def render_fast_forecast(name):
                 st.error('The forecast was generated but could not be verified in shared storage. Planning, Alerts and Reports may not have it.')
             else:
                 _ref = forecast_results_store.forecast_reference(_saved_again)
-                st.success(f'Forecast saved and verified for {name}. Shared forecast reference: {_ref}. Planning, System Alerts and Reports can now use this baseline.')
+                render_card('Forecast saved and verified', f'The LSTM forecast for {name} is saved and available to Fleet Growth & Capacity Planning, System Alerts and Reports.', tone='green', reference=_ref)
                 if forecast_results_store.last_save_status().get('storage') == 'browser session only':
                     st.warning('The forecast is available across pages in this browser session, but local disk storage failed. It may be lost if the Streamlit session ends or the app restarts.')
         except Exception as exc:
