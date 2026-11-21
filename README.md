@@ -1,37 +1,31 @@
-# Optivolt — EV Depot Demand Forecasting and Grid Capacity Planning
+# Optivolt Reports, System Alerts and Demand Prediction alignment
 
-Streamlit application with depot LSTM forecasting plus a separate, reproducible Python forecasting experiment.
+## What this patch changes
 
-## Launch the Streamlit app
+The **Reports** page now reads the **same latest saved depot-specific LSTM forecast** created in Demand Prediction and used by System Alerts. It does not run a separate legacy forecast or reuse legacy XGBoost metrics.
 
-```bash
-pip install -r requirements.txt
-streamlit run app.py
-```
+- `app.py` — routes Reports to `forecast_reports.render`, retaining the previous System Alerts synchronisation route.
+- `forecast_reports.py` — new Reports page with forecast summary, capacity status, time-of-warning/breach, and consistent CSV/PDF exports and interval-level CSV.
+- `forecast_alerts.py` — retained from the previous alert synchronisation patch, and used to calculate capacity risk consistently on both pages.
 
-The default entrypoint for Streamlit Community Cloud is `app.py`. The web app uses the saved LSTM models and their matching scalers in `models/`. The `models/global_model/` XGBoost files are retained solely because legacy dashboard utilities still reference them; they are **not** the active LSTM forecast models. Some depots do not have a complete short-term LSTM pair; the app indicates availability.
+**No model weights, experiment code, or datasets have changed.** Historical training statistics, synthetic-data provenance, and performance metrics are **not available** from a saved future forecast snapshot and are not represented as if they were derived from it. Those should be reported separately using correctly associated model evaluation records.
 
-Do not enable public registration with real customer data before adding production-grade account security, storage and access controls. Review `config.py` for deployment settings.
+## Install with GitHub Desktop
 
-## Reproduce the forecasting experiment
+1. Extract this package.
+2. Select your Optivolt repository in GitHub Desktop and choose **Repository > Show in Explorer**.
+3. Copy `app.py`, `forecast_alerts.py`, and `forecast_reports.py` into the repository root, beside its existing `app.py`. Replace the existing `app.py` and `forecast_alerts.py` when prompted; `forecast_reports.py` is new.
+4. In GitHub Desktop, verify these three file changes and commit with `Sync reports with LSTM demand predictions and alerts`, then **Push origin**.
+5. Once Streamlit has deployed, select a depot in Demand Prediction and generate a fresh LSTM forecast. Visit System Alerts and Reports, selecting the **same depot**. The forecast peak, grid capacity, warning threshold and headroom must agree on all three screens.
+6. Download the operational **CSV and PDF** reports and verify that they show the same values.
 
-The experiment script is `optivolt_experiment.py`. See `EXPERIMENT_README.md` for the methodology, scope and interpretation caveats. Its dependencies are listed separately in `experiment_requirements.txt` so they do not alter the web deployment environment.
+### Important behaviour
 
-```bash
-pip install -r experiment_requirements.txt
-python optivolt_experiment.py --archive "30days(1).zip" --output results --epochs-short 25 --epochs-long 20 --accuracy-tolerance-kw 1.0
-```
+- If no saved LSTM forecast is available, Reports prompts the user to run Demand Prediction first.
+- Changing capacity settings or source data does not retroactively change the last saved forecast. Generate a new prediction before reviewing updated reports or alerts.
+- The forecast is a scenario-dependent estimate, not measured future load or a verified contracted connection limit.
+- The original `dashboard/pages/reports.py` remains untouched because the integrated app routes its operational Reports navigation through the new module.
 
-The compact `30days(1).zip` contains the nine **original source CSVs**, using the `30days/` paths expected by the script. It excludes archived Git history and extraneous files. The same depot data also appears as root-level CSVs for the Streamlit app (normalised line endings).
+## Verification
 
-The experiment creates its synthetic training samples from training-only data at execution time. Six reference 365-day synthetic CSVs are retained under `synthetic_training_data/` because they were supplied with the app repository; the experiment script does not load these reference CSVs.
-
-## Repository structure
-
-- `app.py`, `dashboard/`, application `.py` modules and `dashboard/assets/` — Streamlit user interface and functionality.
-- `models/` — model weights, metadata and paired scalers required by the application's forecasting and legacy dashboard components.
-- `data/`, nine `UKPN_OptimisePrime_*.csv` files and `synthetic_training_data/` — app data and supporting reference datasets.
-- `heldout_predictions_all_models.csv`, `model_comparison_metrics.csv`, `lstm_24h_recursive_forecast.csv`, `21_lstm_training_validation_loss.png` — existing figures/data referenced by app screens.
-- `optivolt_experiment.py`, `EXPERIMENT_README.md`, `experiment_requirements.txt`, `30days(1).zip` — independently reproducible experiment.
-
-Generated results, intermediate reports, previous experimental variants, test snapshots and personal local state are intentionally excluded.
+Syntax checks passed for all three Python files. The report calculations and PDF rendering were checked with representative saved LSTM snapshots, including a no-alert case and an above-capacity case. The complete app has not been deployed or exercised against a live Streamlit Cloud session here.

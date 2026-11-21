@@ -988,6 +988,19 @@ def optivolt_section(section: str) -> None:
         import demand_workspace
         demand_workspace.render(None if choice == "All 9 Depots" else choice)
         return
+    # System Alerts must display the same saved LSTM prediction and grid capacity
+    # that the Demand Prediction workspace used. Do not run the separate legacy
+    # forecasting pipeline here: it can produce a conflicting peak and threshold.
+    if section == "🚨 System Alerts":
+        import forecast_alerts
+        forecast_alerts.render(None if choice == "All 9 Depots" else choice)
+        return
+    # Reports use the very same saved LSTM forecast and capacity snapshot as
+    # Demand Prediction and System Alerts. No independent forecast is fitted.
+    if section == "📋 Reports":
+        import forecast_reports
+        forecast_reports.render(None if choice == "All 9 Depots" else choice)
+        return
     if section == "⚙️ Model Performance" and choice == "All 9 Depots":
         import depot_updates as dep
         options = dep.visible_depots()
