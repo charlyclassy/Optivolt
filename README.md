@@ -6,7 +6,7 @@
 
 Optivolt combines Long Short-Term Memory (LSTM) neural networks, historical electricity demand analysis and interactive scenario planning in a Streamlit application.
 
-**Live Application:** [Optivolt EV Depot Intelligence Portal](https://optivolt-b7gtuketqytpwukkwonf7f.streamlit.app/)
+**Live Application:** [Optivolt EV Depot Intelligence Portal](https://optivolt-b7gtuketqytpwukkwonf7f.streamlit.app/optivolt-demand-forecast)/)
 
 ---
 
