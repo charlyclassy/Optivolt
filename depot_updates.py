@@ -1322,7 +1322,7 @@ def render_fast_forecast(name):
             ('Balanced accuracy', measured('test_balanced_accuracy', 'balanced_accuracy', scale=100, unit='%')),
             ('Capacity-breach recall', measured('test_breach_recall', 'breach_recall', scale=100, unit='%')),
             ('False alarm ratio', measured('test_false_alarm_ratio', 'false_alarm_ratio', scale=100, unit='%')),
-            ('Peak-demand MAE', measured('test_peak_demand_mae_kw', 'peak_demand_mae_kw', unit=' kW')),
+            ('Peak-demand MAE', measured('test_peak_demand_mae_kw', 'peak_demand_mae_kw', 'test_peak_error_kw', unit=' kW')),
             ('Training duration', measured('training_seconds', 'training_duration_seconds', 'training_time_seconds', unit=' s')),
         ]
 
@@ -1378,7 +1378,7 @@ def render_fast_forecast(name):
             '**Confidence:** These metrics support an evidence-based assessment, but reliability '
             'also depends on avoiding missed peaks and performing well on unseen real data.'
         )
-    st.caption('A missing evaluation score means Not evaluated; it is not an indication of poor or zero performance. The Bexleyheath four-model experiment appears separately on Model Performance.')
+    st.caption('Peak-demand MAE is the mean absolute difference between actual and predicted **peak demand per evaluation window** (72 hours for LSTM 1; 30 days for LSTM 2). It is not a daily-peak error. Capacity-risk metrics require matched held-out predictions and an explicitly defined capacity threshold. Training duration requires an original training log. Missing results are not zero. The Bexleyheath four-model experiment is separate.')
     st.markdown('#### Forecast scenario')
     st.caption('Choose the prediction date and expected fleet growth, then generate a forecast.')
     scenario = mode.startswith('Future demand prediction')
