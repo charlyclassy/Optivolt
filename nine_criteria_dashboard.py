@@ -11,6 +11,7 @@ import io
 import numpy as np
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
 CRITERIA = (
     ('Forecast accuracy', (
@@ -159,7 +160,7 @@ def render_dashboard(rows, *, title, context, key):
                 '</div>'
             )
             with columns[idx % len(columns)]:
-                st.markdown(card, unsafe_allow_html=True)
+                components.html('<html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;padding:0;background:transparent;font-family:Inter,Arial,sans-serif}*{box-sizing:border-box}</style></head><body>'+card+'</body></html>', height=125, scrolling=False)
     st.caption('Not evaluated means evidence is unavailable or the denominator is undefined; it does not mean zero.')
     st.caption('Peak-demand MAE = mean absolute difference between actual and predicted daily maxima on matched held-out dates. Training time requires the original run record; the previous-day baseline requires no model training.')
     with st.expander('Compare all models across the nine criteria', expanded=False):
@@ -170,3 +171,42 @@ def render_dashboard(rows, *, title, context, key):
                            data=table.to_csv(index=False).encode('utf-8'),
                            file_name=f'optivolt_{key}_nine_criteria.csv', mime='text/csv',
                            key=f'{key}_download')
+
+
+def render_archived_four_model_comparison(metrics_csv, predictions_csv):
+    """Always-visible Bexleyheath archive, independent of the selected depot."""
+    st.markdown('### Bexleyheath · Archived Four-Model Comparison')
+    st.caption('Historical held-out Bexleyheath experiment, **not** the currently selected depot or a live forecast. Compares previous-day baseline, Random Forest, XGBoost and LSTM on the same test records.')
+    try:
+        records = archived_rows(metrics_csv, predictions_csv)
+        if len(records) != 4:
+            st.warning('The archived experiment is incomplete: four model rows are required.')
+            return
+    except (OSError, ValueError, KeyError, pd.errors.ParserError) as e:
+        st.warning(f'Archived Bexleyheath comparison could not be loaded: {e}')
+        return
+    cols = st.columns(4)
+    for col, item in zip(cols, records):
+        name = str(item['Model'])
+        cells = [('MAE', _format(item.get('MAE (kW)'), 'kW')),
+                 ('RMSE', _format(item.get('RMSE (kW)'), 'kW')),
+                 ('R²', _format(item.get('R²'), ''))]
+        card = ('<div style="background:#173C70;border:1px solid #3d79cf;border-radius:12px;'
+                'padding:14px;min-height:172px;">'
+                '<div style="font-weight:800;color:#FFFFFF!important;-webkit-text-fill-color:#FFFFFF!important;font-size:16px;margin-bottom:14px">'
+                + html.escape(name) + '</div>')
+        for label, val in cells:
+            card += ('<div style="color:#D5E7FF!important;-webkit-text-fill-color:#D5E7FF!important;font-size:12px;margin:5px 0">'
+                     + html.escape(label) + ': <strong style="color:#FFFFFF!important;-webkit-text-fill-color:#FFFFFF!important">'
+                     + html.escape(val) + '</strong></div>')
+        with col:
+            components.html('<html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;padding:0;background:transparent;font-family:Inter,Arial,sans-serif}*{box-sizing:border-box}</style></head><body>'+card+'</div></body></html>', height=182, scrolling=False)
+    st.markdown('#### Full nine-criteria comparison · all four models')
+    keys = ['Model'] + [metric[1] for _, metrics in CRITERIA for metric in metrics]
+    frame = pd.DataFrame(records).reindex(columns=keys)
+    st.dataframe(frame, use_container_width=True, hide_index=True)
+    st.download_button('Download Bexleyheath four-model evaluation (CSV)',
+                       frame.to_csv(index=False).encode('utf-8'),
+                       file_name='bexleyheath_four_model_nine_criteria.csv', mime='text/csv',
+                       key='bexleyheath_four_model_visible_download')
+    st.caption('Peak-demand MAE uses matched daily maxima from held-out predictions. The previous-day baseline has no trainable model, so its training duration is Not evaluated.')

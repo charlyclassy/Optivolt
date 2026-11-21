@@ -1301,45 +1301,66 @@ def render_fast_forecast(name):
         'MAPE (%)': _show_metric(_short_meta.get('test_mape_pct'), '%'),
         'Peak demand error (kW)': _show_metric(_short_meta.get('test_peak_error_kw'), ' kW'),
     }
-    # Side-by-side, read-only scorecards. Values come from the saved evaluation JSON.
-    # This is a display-only change: model selection and forecasting remain untouched.
+    # Nine criteria for EACH saved LSTM model. An absent measurement is not zero.
+    # These JSON records contain MAE, RMSE, R² and a single peak error.
+    # Single peak error is not daily peak-demand MAE, so do not confuse the two.
+    def _nine_lstm_metrics(m, metadata):
+        def measured(*keys, scale=1, unit=''):
+            for key in keys:
+                try:
+                    n = float(metadata.get(key))
+                    if _np.isfinite(n):
+                        return f'{n*scale:,.3f}{unit}'
+                except (ValueError, TypeError):
+                    continue
+            return 'Not evaluated'
+        return [
+            ('MAE', m['MAE (kW)']),
+            ('RMSE', m['RMSE (kW)']),
+            ('R²', m['R²']),
+            ('F1-score', measured('test_f1_score', 'f1_score', scale=100, unit='%')),
+            ('Balanced accuracy', measured('test_balanced_accuracy', 'balanced_accuracy', scale=100, unit='%')),
+            ('Capacity-breach recall', measured('test_breach_recall', 'breach_recall', scale=100, unit='%')),
+            ('False alarm ratio', measured('test_false_alarm_ratio', 'false_alarm_ratio', scale=100, unit='%')),
+            ('Peak-demand MAE', measured('test_peak_demand_mae_kw', 'peak_demand_mae_kw', unit=' kW')),
+            ('Training duration', measured('training_seconds', 'training_duration_seconds', 'training_time_seconds', unit=' s')),
+        ]
+
     import html as _html
-    def _metric_card(title, subtitle, values):
-        def _cell(label, value):
-            return (
-                '<div style="background:#21466f;border:1px solid #355b84;'
-                'border-radius:10px;padding:10px 12px;min-width:0;">'
-                '<div style="font-size:12px;color:#d5e6fa;">' + _html.escape(label) + '</div>'
-                '<div style="font-size:19px;font-weight:750;color:#fff;overflow-wrap:anywhere;">'
+    import numpy as _np
+    def _nine_scorecard(title, subtitle, m, metadata):
+        cells = []
+        for label, value in _nine_lstm_metrics(m, metadata):
+            cells.append(
+                '<div style="background:#21466f;border:1px solid #41658c;border-radius:10px;padding:11px;min-width:0;">'
+                '<div style="font-size:12px;font-weight:650;color:#C6DAFA!important;-webkit-text-fill-color:#C6DAFA!important;">'
+                + _html.escape(label) + '</div>'
+                '<div style="font-size:17px;font-weight:750;color:#fff!important;-webkit-text-fill-color:#fff!important;overflow-wrap:anywhere;margin-top:5px;">'
                 + _html.escape(value) + '</div></div>'
             )
-        main = _cell('MAE · average error', values['MAE (kW)'])
-        extras = ''.join(_cell(label, values[label]) for label in (
-            'RMSE (kW)', 'R²'))
         return (
-            '<div style="background:#17365d;border:1px solid #3478f6;'
-            'border-top:4px solid #3478f6;border-radius:15px;padding:16px;'
-            'color:#fff;min-height:100%;">'
-            '<div style="font-size:19px;font-weight:750;color:#fff;">'
+            '<div style="background:#17365d;border:1px solid #3478f6;border-top:4px solid #3478f6;'
+            'border-radius:15px;padding:16px;color:#fff;">'
+            '<div style="font-size:19px;font-weight:800;color:#fff!important;-webkit-text-fill-color:#fff!important;">'
             + _html.escape(title) + '</div>'
-            '<div style="font-size:13px;color:#d5e6fa;margin:3px 0 14px;">'
+            '<div style="font-size:13px;color:#d5e6fa!important;-webkit-text-fill-color:#d5e6fa!important;margin:4px 0 14px;">'
             + _html.escape(subtitle) + '</div>'
-            + main + '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));'
-            'gap:8px;margin-top:8px;">' + extras + '</div></div>'
+            '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;">'
+            + ''.join(cells) + '</div></div>'
         )
+    import streamlit.components.v1 as _eval_components
+    st.markdown('#### Nine-criteria evaluation · LSTM 1 and LSTM 2')
+    st.caption('Each model displays nine criteria from its own held-out evaluation. Unrecorded metrics are shown as Not evaluated, not borrowed from the Bexleyheath four-model experiment.')
     _left_card, _right_card = st.columns(2, gap='medium')
     with _left_card:
-        st.markdown(_metric_card('LSTM 1 · Short-term', 'Recursive forecast · 72 hours', _short_metrics),
-                    unsafe_allow_html=True)
+        _eval_components.html('<html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;padding:0;background:transparent;font-family:Inter,Arial,sans-serif}*{box-sizing:border-box}</style></head><body>'+_nine_scorecard('LSTM 1 · Short-term', 'Recursive forecast · 72 hours', _short_metrics, _short_meta)+'</body></html>', height=655, scrolling=False)
     with _right_card:
-        st.markdown(_metric_card('LSTM 2 · Long-term', 'Direct forecast · 30 days', _long_metrics),
-                    unsafe_allow_html=True)
-    # Secondary diagnostics stay accessible without crowding forecasting controls.
-    with st.expander('Additional saved-model evaluation metrics', expanded=False):
-        st.caption('These are saved model-specific held-out metrics, not the nine-criteria four-model experiment.')
+        _eval_components.html('<html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;padding:0;background:transparent;font-family:Inter,Arial,sans-serif}*{box-sizing:border-box}</style></head><body>'+_nine_scorecard('LSTM 2 · Long-term', 'Direct forecast · 30 days', _long_metrics, _long_meta)+'</body></html>', height=655, scrolling=False)
+    with st.expander('Additional saved-model diagnostics · MAPE and single-peak error', expanded=False):
+        st.caption('These are separate diagnostics, not substitutes for any of the nine criteria. MAPE can be unstable near zero demand. Single-peak error is not daily peak-demand MAE.')
         st.dataframe(pd.DataFrame([
-            {'Model': 'LSTM 1 · Short-term', 'MAPE (%)': _short_metrics['MAPE (%)'], 'Peak demand error (kW)': _short_metrics['Peak demand error (kW)']},
-            {'Model': 'LSTM 2 · Long-term', 'MAPE (%)': _long_metrics['MAPE (%)'], 'Peak demand error (kW)': _long_metrics['Peak demand error (kW)']},
+            {'Model': 'LSTM 1 · Short-term', 'MAPE (%)': _short_metrics['MAPE (%)'], 'Single-peak error (kW)': _short_metrics['Peak demand error (kW)']},
+            {'Model': 'LSTM 2 · Long-term', 'MAPE (%)': _long_metrics['MAPE (%)'], 'Single-peak error (kW)': _long_metrics['Peak demand error (kW)']},
         ]), hide_index=True, use_container_width=True)
     with st.expander('Understanding forecast accuracy and model confidence', expanded=False):
         st.markdown(
@@ -1357,7 +1378,7 @@ def render_fast_forecast(name):
             '**Confidence:** These metrics support an evidence-based assessment, but reliability '
             'also depends on avoiding missed peaks and performing well on unseen real data.'
         )
-    st.caption('For capacity-risk detection scores, peak-demand MAE and training duration, open Model Performance → Nine-criteria evaluation. Scores are shown only where matching held-out evidence is available.')
+    st.caption('A missing evaluation score means Not evaluated; it is not an indication of poor or zero performance. The Bexleyheath four-model experiment appears separately on Model Performance.')
     st.markdown('#### Forecast scenario')
     st.caption('Choose the prediction date and expected fleet growth, then generate a forecast.')
     scenario = mode.startswith('Future demand prediction')
